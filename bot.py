@@ -1,16 +1,22 @@
-import requests, time, re
+import os
+import re
+import time
+import requests
+import chromedriver_autoinstaller
 from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from telegram.ext import Updater, CommandHandler
 
-BOT_TOKEN = "8311824260:AAGW-fZPpNBP4f3vtZbb1QWKpTSlqdT2olo"
+# Telegram Bot Token from Heroku ENV
+BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# --- Generate Fake Email ---
+chromedriver_autoinstaller.install()
+
 def get_fake_email():
     url = "https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1"
     return requests.get(url).json()[0]
 
-# --- Fetch OTP ---
 def get_otp(email):
     login, domain = email.split('@')
     for _ in range(10):
@@ -28,14 +34,19 @@ def get_otp(email):
         time.sleep(5)
     return None
 
-# --- Telegram Command ---
 def start(update, context):
     fake_email = get_fake_email()
-    update.message.reply_text(f"Fake Email: {fake_email}\nOTP aane ka wait karo...")
+    update.message.reply_text(f"📧 Fake Email: {fake_email}\n⏳ OTP wait kar rahe hain...")
 
-    # Launch browser
-    driver = webdriver.Chrome()
-    driver.get("https://example.com/login")
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--window-size=1920x1080")
+
+    driver = webdriver.Chrome(options=chrome_options)
+    driver.get("https://example.com/login")  # <-- apni site ka URL daalo
+
     driver.find_element(By.ID, "email").send_keys(fake_email)
     driver.find_element(By.ID, "submitBtn").click()
 
@@ -43,10 +54,16 @@ def start(update, context):
     if otp:
         driver.find_element(By.ID, "otp").send_keys(otp)
         driver.find_element(By.ID, "verifyBtn").click()
-        update.message.reply_text(f"✅ OTP Entered: {otp}")
+        update.message.reply_text(f"✅ OTP Found & Submitted: {otp}")
     else:
         update.message.reply_text("❌ OTP nahi mila.")
 
-updater = Updater(BOT_TOKEN)
-updater.dispatcher.add_handler(CommandHandler("start", start))
-updater.start_polling()
+def main():
+    updater = Updater(BOT_TOKEN, use_context=True)
+    dp = updater.dispatcher
+    dp.add_handler(CommandHandler("start", start))
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == "__main__":
+    main()
