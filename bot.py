@@ -8,33 +8,40 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from telegram.ext import Updater, CommandHandler
 
-# --- Telegram Bot Token (Heroku Config Vars me add karna) ---
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
-# --- Fake Email Generator ---
-def get_fake_email():
-    url = "https://www.1secmail.com/api/v1/?action=genRandomMailbox&count=1"
-    return requests.get(url).json()[0]
+MAIL_TM_API = "https://api.mail.tm"
 
-# --- Fetch OTP from Fake Mail ---
-def get_otp(email):
-    login, domain = email.split('@')
-    for _ in range(10):  # 10 retries with delay
-        resp = requests.get(
-            f"https://www.1secmail.com/api/v1/?action=getMessages&login={login}&domain={domain}"
-        ).json()
-        if resp:
-            msg_id = resp[0]['id']
-            mail = requests.get(
-                f"https://www.1secmail.com/api/v1/?action=readMessage&login={login}&domain={domain}&id={msg_id}"
-            ).json()
-            otp = re.findall(r"\d{4,8}", mail['body'])
+# --- Create Mail.tm Account ---
+def create_mail_account():
+    email = requests.post(
+        f"{MAIL_TM_API}/accounts",
+        json={"address": "", "password": "password123"}
+    ).json()
+
+    # Login to get token
+    login = requests.post(
+        f"{MAIL_TM_API}/token",
+        json={"address": email["address"], "password": "password123"}
+    ).json()
+
+    return email["address"], login["token"]
+
+# --- Fetch OTP from Mail.tm ---
+def get_otp(token):
+    headers = {"Authorization": f"Bearer {token}"}
+    for _ in range(10):  # retry loop
+        msgs = requests.get(f"{MAIL_TM_API}/messages", headers=headers).json()
+        if "hydra:member" in msgs and msgs["hydra:member"]:
+            msg_id = msgs["hydra:member"][0]["id"]
+            msg = requests.get(f"{MAIL_TM_API}/messages/{msg_id}", headers=headers).json()
+            otp = re.findall(r"\d{4,8}", msg.get("text", ""))
             if otp:
                 return otp[0]
         time.sleep(5)
     return None
 
-# --- Selenium Setup for Heroku ---
+# --- Selenium driver setup (Heroku ready) ---
 def get_driver():
     chrome_options = Options()
     chrome_options.binary_location = os.environ.get(
@@ -52,17 +59,17 @@ def get_driver():
 
 # --- Telegram Command ---
 def start(update, context):
-    fake_email = get_fake_email()
+    fake_email, token = create_mail_account()
     update.message.reply_text(f"📧 Fake Email: {fake_email}\n⏳ OTP wait kar rahe hain...")
 
     driver = get_driver()
-    driver.get("https://example.com/login")  # <-- apni website ka login URL daalo
+    driver.get("https://example.com/login")  # <-- apni site ka login URL daalo
 
     # Example selectors (update site ke hisaab se)
     driver.find_element(By.ID, "email").send_keys(fake_email)
     driver.find_element(By.ID, "submitBtn").click()
 
-    otp = get_otp(fake_email)
+    otp = get_otp(token)
     if otp:
         driver.find_element(By.ID, "otp").send_keys(otp)
         driver.find_element(By.ID, "verifyBtn").click()
