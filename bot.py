@@ -1,54 +1,94 @@
+# ============================
+# Telegram Bot: /write command
+# Makes a clean image with text you send
+# ============================
+
+import io
+from PIL import Image, ImageDraw, ImageFont
 from telegram import Update
-from telegram.ext import ApplicationBuilder, MessageHandler, filters, ContextTypes
-import requests
+from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-TON_API = "https://api.coingecko.com/api/v3/simple/price?ids=toncoin&vs_currencies=usd"
+# --- YOUR BOT TOKEN HERE ---
+BOT_TOKEN = "8411607342:AAHSDSB98MDYeuYMZUk6nHqKtZy2zquhVig"
+# Optional font (you can change path or use default)
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 
-NFT_API = "https://api.opensea.io/api/v1/asset"  # OpenSea asset endpoint
 
-async def nft_link_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    text = update.message.text
-    if "t.me/nft/" not in text.lower():
-        return  # ignore non-NFT links
+# === Generate image ===
+def generate_image(text: str):
+    # Image setup
+    W, H = 1000, 600
+    bg_color = (20, 20, 20)       # dark background
+    text_color = (255, 255, 255)  # white text
+    font_size = 48
 
+    # Load font
     try:
-        # Parse link
-        parts = text.split('/')[-1].split('-')
-        collection_slug = "-".join(parts[:-1])
-        token_id = parts[-1]
+        font = ImageFont.truetype(FONT_PATH, font_size)
+    except:
+        font = ImageFont.load_default()
 
-        # --- Fetch NFT data ---
-        url = f"{NFT_API}/{collection_slug}/{token_id}/"
-        headers = {"Accept": "application/json"}
-        nft_res = requests.get(url, headers=headers).json()
+    # Wrap text for neat layout
+    lines = []
+    words = text.split()
+    line = ""
+    for word in words:
+        if font.getlength(line + word + " ") <= W - 100:
+            line += word + " "
+        else:
+            lines.append(line.strip())
+            line = word + " "
+    lines.append(line.strip())
 
-        nft_name = nft_res.get("name") or f"{collection_slug} #{token_id}"
-        floor_price_eth = nft_res.get("last_sale", {}).get("total_price") or 0.5
-        permalink = nft_res.get("permalink", f"https://opensea.io/assets/{collection_slug}/{token_id}")
+    # Calculate height
+    line_height = font.getbbox("A")[3] + 10
+    total_text_height = len(lines) * line_height
+    y_start = (H - total_text_height) // 2
 
-        # ETH -> USD
-        eth_price = requests.get("https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd").json()["ethereum"]["usd"]
-        floor_usd = float(floor_price_eth) * eth_price
+    # Create image
+    img = Image.new("RGB", (W, H), bg_color)
+    draw = ImageDraw.Draw(img)
 
-        # USD -> TON
-        ton_price = requests.get(TON_API).json()["toncoin"]["usd"]
-        floor_ton = floor_usd / ton_price
+    # Draw each line centered
+    for line in lines:
+        w = font.getlength(line)
+        x = (W - w) // 2
+        draw.text((x, y_start), line, fill=text_color, font=font)
+        y_start += line_height
 
-        message = (
-            f"🖼 NFT: {nft_name}\n"
-            f"💰 Floor Price: {floor_price_eth} ETH\n"
-            f"💵 USD: ${floor_usd:.2f}\n"
-            f"💎 TON: {floor_ton:.2f} TON\n"
-            f"🔗 OpenSea: {permalink}"
-        )
-        await update.message.reply_text(message)
+    # Convert to bytes
+    bio = io.BytesIO()
+    img.save(bio, format="PNG")
+    bio.seek(0)
+    return bio
 
-    except Exception as e:
-        await update.message.reply_text(f"Error fetching NFT info: {e}")
 
-# ==== Bot Setup ====
-if __name__ == "__main__":
-    app = ApplicationBuilder().token("8411607342:AAHSDSB98MDYeuYMZUk6nHqKtZy2zquhVig").build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, nft_link_handler))
-    print("NFT Link Bot started...")
+# === Command handlers ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("👋 Send /write <text> and I’ll make it into an image!")
+
+
+async def write_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not context.args:
+        return await update.message.reply_text("❗Usage: `/write your text here`", parse_mode="Markdown")
+
+    text = " ".join(context.args).strip()
+    if len(text) > 1000:
+        return await update.message.reply_text("⚠️ Text too long! Keep under 1000 characters.")
+
+    img = generate_image(text)
+    await update.message.reply_photo(photo=img, caption="🖋️ Here's your text image!")
+
+
+# === Main ===
+def main():
+    app = ApplicationBuilder().token(BOT_TOKEN).build()
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("write", write_command))
+
+    print("✅ Bot is running... Press Ctrl+C to stop.")
     app.run_polling()
+
+
+if __name__ == "__main__":
+    main()
