@@ -950,72 +950,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"All deal history for {username}"
     )
 
-from datetime import datetime, timedelta, timezone
-from telegram import Update
-from telegram.ext import ContextTypes
 
-# ==== /stats Command (IST Clean Version) ====
-async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.full_name
-    user_check = username.lower().strip()
-
-    total_deals = 0
-    total_volume = 0.0
-    ongoing_deals = 0
-    highest_deal = 0.0
-    all_users = {}
-
-    # === Collect data from all groups ===
-    for g in groups_col.find({}):
-        deals = g.get("deals", {})
-        for deal in deals.values():
-            if not deal:
-                continue
-
-            buyer = str(deal.get("buyer", "")).lower().strip()
-            seller = str(deal.get("seller", "")).lower().strip()
-            amount = float(deal.get("added_amount", 0) or 0)
-            completed = bool(deal.get("completed", False))
-
-            # Count stats for this user
-            if user_check in [buyer, seller]:
-                total_deals += 1
-                total_volume += amount
-                highest_deal = max(highest_deal, amount)
-                if not completed:
-                    ongoing_deals += 1
-
-            # Add to global stats
-            for u in [buyer, seller]:
-                if u.startswith("@") and u != "":
-                    all_users.setdefault(u, {"volume": 0})
-                    all_users[u]["volume"] += amount
-
-    # === No deals found ===
-    if total_deals == 0:
-        return await update.message.reply_text("🎉 No stats found for you.")
-
-    # === Rank Calculation ===
-    sorted_users = sorted(all_users.items(), key=lambda x: x[1]["volume"], reverse=True)
-    rank = next((i + 1 for i, (u, _) in enumerate(sorted_users) if u == user_check), "N/A")
-
-    # === IST Time === (no pytz)
-    IST = timezone(timedelta(hours=5, minutes=30))
-    time_now = datetime.now(IST).strftime("%d %b %Y, %I:%M %p")
-
-    # === Clean Text Output ===
-    msg = (
-        f"📊 Participant Stats for {username}\n\n"
-        f"👑 Ranking: {rank}\n"
-        f"📈 Total Volume: ₹{total_volume:,.1f}\n"
-        f"🧳 Total Deals: {total_deals}\n"
-        f"🧿 Ongoing Deals: {ongoing_deals}\n"
-        f"💳 Highest Deal - ₹{highest_deal:,.1f}\n\n"
-        f"🕓 Updated on {time_now} (IST)"
-    )
-
-    await update.message.reply_text(msg)
         
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
