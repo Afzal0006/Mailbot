@@ -17,7 +17,7 @@ FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 # === Generate image ===
 def generate_image(text: str):
     # Image setup
-    W, H = 1000, 600
+    W, H = 1500, 600
     bg_color = (20, 20, 20)       # dark background
     text_color = (255, 255, 255)  # white text
     font_size = 48
@@ -73,8 +73,8 @@ async def write_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❗Usage: `/write your text here`", parse_mode="Markdown")
 
     text = " ".join(context.args).strip()
-    if len(text) > 1000:
-        return await update.message.reply_text("⚠️ Text too long! Keep under 1000 characters.")
+    if len(text) > 10000:
+        return await update.message.reply_text("⚠️ Text too long! Keep under 10000 characters.")
 
     img = generate_image(text)
     await update.message.reply_photo(photo=img, caption="🖋️ Here's your text image!")
