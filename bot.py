@@ -1,26 +1,28 @@
-# ============================
-# Telegram Bot: /write command
-# Makes a clean image with text you send
-# ============================
+# ==========================================
+# Telegram Bot: /write command (Styled Version)
+# Writes your text from top-left on a white background
+# ==========================================
 
 import io
 from PIL import Image, ImageDraw, ImageFont
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
-# --- YOUR BOT TOKEN HERE ---
+# --- Your Bot Token ---
 BOT_TOKEN = "8411607342:AAHSDSB98MDYeuYMZUk6nHqKtZy2zquhVig"
-# Optional font (you can change path or use default)
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
+
+# --- Font Path (stylish font if available) ---
+# If this path doesn't exist, it will fallback to default
+# You can download any .ttf font (like "GreatVibes-Regular.ttf") and put it in the same folder
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf"
 
 
-# === Generate image ===
+# === Function to Generate Image ===
 def generate_image(text: str):
-    # Image setup
-    W, H = 2000, 2000
-    bg_color = (20, 20, 20)       # dark background
-    text_color = (255, 255, 255)  # white text
-    font_size = 30
+    W, H = 2000, 2000  # Canvas size
+    bg_color = (255, 255, 255)       # white background
+    text_color = (30, 30, 30)        # dark gray text
+    font_size = 40
 
     # Load font
     try:
@@ -28,7 +30,11 @@ def generate_image(text: str):
     except:
         font = ImageFont.load_default()
 
-    # Wrap text for neat layout
+    # Create image
+    img = Image.new("RGB", (W, H), bg_color)
+    draw = ImageDraw.Draw(img)
+
+    # Word-wrap (like paragraph)
     lines = []
     words = text.split()
     line = ""
@@ -40,44 +46,42 @@ def generate_image(text: str):
             line = word + " "
     lines.append(line.strip())
 
-    # Calculate height
-    line_height = font.getbbox("A")[3] + 10
-    total_text_height = len(lines) * line_height
-    y_start = (H - total_text_height) // 2
+    # Draw from top-left corner with padding
+    x, y = 60, 60  # top-left margin
+    line_height = font.getbbox("A")[3] + 15
 
-    # Create image
-    img = Image.new("RGB", (W, H), bg_color)
-    draw = ImageDraw.Draw(img)
-
-    # Draw each line centered
     for line in lines:
-        w = font.getlength(line)
-        x = (W - w) // 2
-        draw.text((x, y_start), line, fill=text_color, font=font)
-        y_start += line_height
+        draw.text((x, y), line, fill=text_color, font=font)
+        y += line_height
+        if y > H - 100:
+            break  # stop if text exceeds image height
 
-    # Convert to bytes
+    # Save image to bytes
     bio = io.BytesIO()
     img.save(bio, format="PNG")
     bio.seek(0)
     return bio
 
 
-# === Command handlers ===
+# === Telegram Handlers ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("👋 Send /write <text> and I’ll make it into an image!")
+    await update.message.reply_text(
+        "✍️ Use `/write <your text>`\nI'll write it beautifully on an image!"
+    )
 
 
 async def write_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not context.args:
-        return await update.message.reply_text("❗Usage: `/write your text here`", parse_mode="Markdown")
+        return await update.message.reply_text(
+            "❗Usage: `/write your text here`", parse_mode="Markdown"
+        )
 
     text = " ".join(context.args).strip()
-    if len(text) > 10000:
-        return await update.message.reply_text("⚠️ Text too long! Keep under 10000 characters.")
+    if len(text) > 5000:
+        return await update.message.reply_text("⚠️ Text too long (max 5000 chars).")
 
     img = generate_image(text)
-    await update.message.reply_photo(photo=img, caption="🖋️ Here's your text image!")
+    await update.message.reply_photo(photo=img, caption="🖋️ Here's your styled text image!")
 
 
 # === Main ===
