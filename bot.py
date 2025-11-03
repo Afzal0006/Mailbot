@@ -1,73 +1,69 @@
 # ==========================================
-# Telegram Bot: /write command (Enhanced Styled Version)
-# Big text, stretched line spacing, clean top-left layout
+# Telegram Bot: /write command (PDF Version)
+# Creates a clean white PDF with your text
 # ==========================================
 
 import io
-from PIL import Image, ImageDraw, ImageFont
+from reportlab.lib.pagesizes import A4
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import cm
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 
 # --- Your Bot Token ---
 BOT_TOKEN = "8411607342:AAHSDSB98MDYeuYMZUk6nHqKtZy2zquhVig"
 
-# --- Font Path (stylish font if available) ---
-# You can download any TTF font (e.g., "PlayfairDisplay-Bold.ttf") and use it
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
+# === Function to Generate PDF ===
+def generate_pdf(text: str):
+    # Create an in-memory bytes buffer
+    buffer = io.BytesIO()
 
-# === Function to Generate Image ===
-def generate_image(text: str):
-    # Canvas setup
-    W, H = 2000, 2000
-    bg_color = (255, 255, 255)      # white background
-    text_color = (0, 0, 0)          # pure black text
-    font_size = 140                 # bigger font
+    # A4 page setup
+    page_width, page_height = A4
+    margin = 2 * cm
+    font_size = 24  # Large font
+    line_spacing = font_size * 1.8  # stretched spacing
 
-    # Load font
-    try:
-        font = ImageFont.truetype(FONT_PATH, font_size)
-    except:
-        font = ImageFont.load_default()
+    # Create canvas
+    pdf = canvas.Canvas(buffer, pagesize=A4)
+    pdf.setTitle("WriteBot Output")
+    pdf.setFont("Helvetica-Bold", font_size)
 
-    # Create image
-    img = Image.new("RGB", (W, H), bg_color)
-    draw = ImageDraw.Draw(img)
+    # Start coordinates
+    x, y = margin, page_height - margin
 
-    # Word wrapping (auto new line)
-    lines = []
+    # Split words for wrapping
     words = text.split()
     line = ""
+
     for word in words:
-        if font.getlength(line + word + " ") <= W - 200:  # wider margin
-            line += word + " "
+        test_line = line + word + " "
+        if pdf.stringWidth(test_line, "Helvetica-Bold", font_size) < (page_width - 2 * margin):
+            line = test_line
         else:
-            lines.append(line.strip())
+            pdf.drawString(x, y, line.strip())
+            y -= line_spacing
             line = word + " "
-    lines.append(line.strip())
+            # If page filled, create new page
+            if y < margin:
+                pdf.showPage()
+                pdf.setFont("Helvetica-Bold", font_size)
+                y = page_height - margin
 
-    # Start top-left with margin
-    x, y = 80, 80
-    line_height = int(font.getbbox("A")[3] * 1.8)  # stretched line spacing (1.8x)
+    # Draw last line
+    if line:
+        pdf.drawString(x, y, line.strip())
 
-    # Draw all lines
-    for line in lines:
-        draw.text((x, y), line, fill=text_color, font=font)
-        y += line_height
-        if y > H - 200:
-            break  # stop if bottom reached
-
-    # Convert to bytes
-    bio = io.BytesIO()
-    img.save(bio, format="PNG")
-    bio.seek(0)
-    return bio
+    pdf.save()
+    buffer.seek(0)
+    return buffer
 
 
 # === Telegram Handlers ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
-        "✍️ Use `/write <your text>`\nI'll write it beautifully on an image!"
+        "📄 Send `/write <text>` and I'll return a clean, stylish PDF of your text!"
     )
 
 
@@ -78,11 +74,16 @@ async def write_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     text = " ".join(context.args).strip()
-    if len(text) > 5000:
-        return await update.message.reply_text("⚠️ Text too long (max 5000 chars).")
+    if len(text) > 8000:
+        return await update.message.reply_text("⚠️ Text too long (max 8000 chars).")
 
-    img = generate_image(text)
-    await update.message.reply_photo(photo=img, caption="🖋️ Here's your styled text image!")
+    pdf_bytes = generate_pdf(text)
+
+    await update.message.reply_document(
+        document=pdf_bytes,
+        filename="WriteBot_Output.pdf",
+        caption="🖋️ Here's your text as a PDF!"
+    )
 
 
 # === Main ===
@@ -91,7 +92,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("write", write_command))
 
-    print("✅ Bot is running... Press Ctrl+C to stop.")
+    print("✅ PDF WriteBot is running... Press Ctrl+C to stop.")
     app.run_polling()
 
 
