@@ -4,7 +4,7 @@
 # ==========================================
 
 import io
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A3
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import cm
 from telegram import Update
@@ -19,14 +19,14 @@ def generate_pdf(text: str):
     # Create an in-memory bytes buffer
     buffer = io.BytesIO()
 
-    # A4 page setup
+    # A3 page setup
     page_width, page_height = A3
     margin = 2 * cm
     font_size = 24  # Large font
     line_spacing = font_size * 1.8  # stretched spacing
 
     # Create canvas
-    pdf = canvas.Canvas(buffer, pagesize=A4)
+    pdf = canvas.Canvas(buffer, pagesize=A3)
     pdf.setTitle("WriteBot Output")
     pdf.setFont("Helvetica-Bold", font_size)
 
