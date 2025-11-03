@@ -20,7 +20,7 @@ def generate_pdf(text: str):
     buffer = io.BytesIO()
 
     # A4 page setup
-    page_width, page_height = A4
+    page_width, page_height = A3
     margin = 2 * cm
     font_size = 24  # Large font
     line_spacing = font_size * 1.8  # stretched spacing
