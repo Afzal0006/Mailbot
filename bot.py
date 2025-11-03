@@ -22,7 +22,7 @@ def generate_image(text: str):
     W, H = 2000, 2000  # Canvas size
     bg_color = (255, 255, 255)       # white background
     text_color = (30, 30, 30)        # dark gray text
-    font_size = 80
+    font_size = 180
 
     # Load font
     try:
