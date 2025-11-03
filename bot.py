@@ -17,10 +17,10 @@ FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"
 # === Generate image ===
 def generate_image(text: str):
     # Image setup
-    W, H = 1500, 600
+    W, H = 2000, 700
     bg_color = (20, 20, 20)       # dark background
     text_color = (255, 255, 255)  # white text
-    font_size = 48
+    font_size = 24
 
     # Load font
     try:
