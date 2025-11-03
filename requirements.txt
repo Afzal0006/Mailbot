@@ -1,3 +1,145 @@
-python-telegram-bot>=20.0
-Pillow
-reportlab
+import io
+from PIL import Image, ImageDraw, ImageFont
+from telegram import Update, InputFile
+from telegram.ext import ContextTypes
+
+
+# ==============================
+# === IMAGE + PDF HELPERS ===
+# ==============================
+
+def create_sheet_image(rows, page_title="My Deals", columns=None, rows_per_page=12):
+    """
+    Creates a clean, copyable, table-like image with thin equal lines and readable text.
+    """
+    if columns is None:
+        columns = ["BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT"]
+
+    width = 1000
+import io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle,
+    Paragraph, Spacer, Image
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from telegram import Update, InputFile
+from telegram.ext import ContextTypes
+from datetime import datetime
+
+
+async def mystats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = f"@{user.username}" if user.username else user.full_name
+
+    # === Collect deals (replace with Mongo data) ===
+    all_deals = []
+    for g in groups_col.find({}):
+        for d in g.get("deals", {}).values():
+            if username in [d.get("buyer"), d.get("seller"), d.get("escrower")]:
+                all_deals.append([
+                    d.get("buyer", ""),
+                    d.get("seller", ""),
+                    d.get("escrower", ""),
+                    d.get("trade_id", ""),
+                    f"₹{d.get('added_amount', 0)}"
+                ])
+
+    if not all_deals:
+        return await update.message.reply_text("🎉 No deals found for you!")
+
+    # === Create PDF in memory ===
+    buffer = io.BytesIO()
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        title=f"{username}'s Deals Summary",
+        rightMargin=40,
+        leftMargin=40,
+        topMargin=60,
+        bottomMargin=40
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        name="TitleStyle",
+        parent=styles['Title'],
+        fontSize=22,
+        leading=26,
+        alignment=1,  # center
+        textColor=colors.HexColor("#1F4E79")
+    )
+
+    subtitle_style = ParagraphStyle(
+        name="Subtitle",
+        parent=styles['Normal'],
+        fontSize=11,
+        leading=14,
+        textColor=colors.grey,
+        alignment=1
+    )
+
+    footer_style = ParagraphStyle(
+        name="Footer",
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.grey,
+        alignment=1
+    )
+
+    elements = []
+
+    # === Header ===
+    elements.append(Paragraph("<b>ESCROW TRADE SUMMARY</b>", title_style))
+    elements.append(Paragraph(f"Generated for {username}", subtitle_style))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(datetime.now().strftime("📅 %B %d, %Y • %I:%M %p UTC"), subtitle_style))
+    elements.append(Spacer(1, 18))
+
+    # === Table Data ===
+    table_data = [["BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT"]] + all_deals
+
+    table = Table(table_data, colWidths=[100, 100, 100, 130, 80])
+    table.setStyle(TableStyle([
+        # Header row
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+
+        # Body
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 1), (-1, -1), 11),
+        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+
+        # Borders
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
+
+        # Alternate row color
+        ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+         [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
+    ]))
+
+    elements.append(table)
+    elements.append(Spacer(1, 20))
+
+    # === Footer ===
+    elements.append(Paragraph(
+        "💼 Generated securely via <b>Telegram Escrow Bot</b><br/>"
+        "This report summarizes all completed and ongoing trades.",
+        footer_style
+    ))
+
+    pdf.build(elements)
+    buffer.seek(0)
+
+    # === Send PDF ===
+    await update.effective_chat.send_document(
+        document=InputFile(buffer, filename=f"{username.strip('@')}_deals.pdf"),
+        caption=f"📄 Professional deal report for {username}"
+    )
