@@ -1,6 +1,6 @@
 # ==========================================
-# Telegram Bot: /write command (Styled Version)
-# Writes your text from top-left on a white background
+# Telegram Bot: /write command (Enhanced Styled Version)
+# Big text, stretched line spacing, clean top-left layout
 # ==========================================
 
 import io
@@ -12,17 +12,17 @@ from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
 BOT_TOKEN = "8411607342:AAHSDSB98MDYeuYMZUk6nHqKtZy2zquhVig"
 
 # --- Font Path (stylish font if available) ---
-# If this path doesn't exist, it will fallback to default
-# You can download any .ttf font (like "GreatVibes-Regular.ttf") and put it in the same folder
-FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Italic.ttf"
+# You can download any TTF font (e.g., "PlayfairDisplay-Bold.ttf") and use it
+FONT_PATH = "/usr/share/fonts/truetype/dejavu/DejaVuSerif-Bold.ttf"
 
 
 # === Function to Generate Image ===
 def generate_image(text: str):
-    W, H = 2000, 2000  # Canvas size
-    bg_color = (255, 255, 255)       # white background
-    text_color = (30, 30, 30)        # dark gray text
-    font_size = 180
+    # Canvas setup
+    W, H = 2000, 2000
+    bg_color = (255, 255, 255)      # white background
+    text_color = (0, 0, 0)          # pure black text
+    font_size = 140                 # bigger font
 
     # Load font
     try:
@@ -34,29 +34,30 @@ def generate_image(text: str):
     img = Image.new("RGB", (W, H), bg_color)
     draw = ImageDraw.Draw(img)
 
-    # Word-wrap (like paragraph)
+    # Word wrapping (auto new line)
     lines = []
     words = text.split()
     line = ""
     for word in words:
-        if font.getlength(line + word + " ") <= W - 100:
+        if font.getlength(line + word + " ") <= W - 200:  # wider margin
             line += word + " "
         else:
             lines.append(line.strip())
             line = word + " "
     lines.append(line.strip())
 
-    # Draw from top-left corner with padding
-    x, y = 60, 60  # top-left margin
-    line_height = font.getbbox("A")[3] + 15
+    # Start top-left with margin
+    x, y = 80, 80
+    line_height = int(font.getbbox("A")[3] * 1.8)  # stretched line spacing (1.8x)
 
+    # Draw all lines
     for line in lines:
         draw.text((x, y), line, fill=text_color, font=font)
         y += line_height
-        if y > H - 100:
-            break  # stop if text exceeds image height
+        if y > H - 200:
+            break  # stop if bottom reached
 
-    # Save image to bytes
+    # Convert to bytes
     bio = io.BytesIO()
     img.save(bio, format="PNG")
     bio.seek(0)
