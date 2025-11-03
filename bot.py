@@ -378,24 +378,22 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from telegram import InputFile
 from datetime import datetime, timezone, timedelta
 
-# ==== /stats Command (Table PDF version) ====
+# ==== /stats Command (PDF version same as /history) ====
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = f"@{user.username}" if user.username else user.full_name
     user_check = username.lower().strip()
 
-    # === Collect Data ===
     total_deals = 0
     total_volume = 0.0
+    completed_deals = 0
     ongoing_deals = 0
     highest_deal = 0.0
-
     completed_volume = 0.0
-    completed_deals = 0
 
+    # === Collect data ===
     for g in groups_col.find({}):
-        deals = g.get("deals", {})
-        for deal in deals.values():
+        for deal in g.get("deals", {}).values():
             if not deal:
                 continue
             buyer = str(deal.get("buyer", "")).lower().strip()
@@ -417,12 +415,10 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("📊 No deals found for you!")
 
     avg_deal = total_volume / total_deals if total_deals else 0
-
-    # === IST Time ===
     IST = timezone(timedelta(hours=5, minutes=30))
     date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
 
-    # === PDF Creation ===
+    # === Prepare PDF ===
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(
         buffer,
@@ -447,39 +443,43 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     elements = []
-    elements.append(Paragraph("<b>LUCKY ESCROW — USER STATS</b>", title_style))
-    elements.append(Paragraph(f"📈 Summary for {username}", subtitle_style))
-    elements.append(Paragraph(f"🕓 Generated on {date_str}", subtitle_style))
+    elements.append(Paragraph("<b>LUCKY ESCROW — STATS SUMMARY</b>", title_style))
+    elements.append(Paragraph(f"📋 Generated for {username}", subtitle_style))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
     elements.append(Spacer(1, 20))
 
     # === Table Data ===
-    data = [
-        ["Metric", "Value"],
-        ["Total Deals", f"{total_deals}"],
-        ["Completed Deals", f"{completed_deals}"],
-        ["Ongoing Deals", f"{ongoing_deals}"],
-        ["Total Volume", f"₹{total_volume:,.2f}"],
-        ["Completed Volume", f"₹{completed_volume:,.2f}"],
-        ["Highest Single Deal", f"₹{highest_deal:,.2f}"],
-        ["Average Deal Size", f"₹{avg_deal:,.2f}"],
+    table_data = [
+        ["#", "Metric", "Value"],
+        ["1", "Total Deals", f"{total_deals}"],
+        ["2", "Completed Deals", f"{completed_deals}"],
+        ["3", "Ongoing Deals", f"{ongoing_deals}"],
+        ["4", "Total Volume", f"₹{total_volume:,.2f}"],
+        ["5", "Completed Volume", f"₹{completed_volume:,.2f}"],
+        ["6", "Highest Deal", f"₹{highest_deal:,.2f}"],
+        ["7", "Average Deal Size", f"₹{avg_deal:,.2f}"],
     ]
 
-    table = Table(data, colWidths=[200, 200])
+    table = Table(table_data, colWidths=[30, 200, 200])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
         ('ROWBACKGROUNDS', (0, 1), (-1, -1),
          [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
+
     elements.append(table)
     elements.append(Spacer(1, 20))
 
     elements.append(Paragraph(
-        "📜 Generated securely by <b>Lucky Escrow Bot</b> — User stats summary report.",
+        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
+        "This summary shows your total trading performance.",
         footer_style
     ))
 
