@@ -367,114 +367,129 @@ async def global_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg)
 
-from datetime import datetime
-from zoneinfo import ZoneInfo
 import io
-from PIL import Image, ImageDraw, ImageFont
-from telegram import Update
-from telegram.ext import ContextTypes
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle,
+    Paragraph, Spacer
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from telegram import InputFile
+from datetime import datetime, timezone, timedelta
 
-# ==== Personal stats ====
+# ==== /stats Command (Table PDF version) ====
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = f"@{user.username}" if user.username else user.full_name
     user_check = username.lower().strip()
 
+    # === Collect Data ===
     total_deals = 0
-    total_volume = 0
+    total_volume = 0.0
     ongoing_deals = 0
-    highest_deal = 0
-    all_users = {}
+    highest_deal = 0.0
 
-    # === Collect data from all groups ===
+    completed_volume = 0.0
+    completed_deals = 0
+
     for g in groups_col.find({}):
-        for deal in g.get("deals", {}).values():
+        deals = g.get("deals", {})
+        for deal in deals.values():
             if not deal:
                 continue
             buyer = str(deal.get("buyer", "")).lower().strip()
             seller = str(deal.get("seller", "")).lower().strip()
             amount = float(deal.get("added_amount", 0))
-            completed = deal.get("completed", False)
+            completed = bool(deal.get("completed", False))
 
-            if user_check == buyer or user_check == seller:
+            if user_check in [buyer, seller]:
                 total_deals += 1
                 total_volume += amount
                 highest_deal = max(highest_deal, amount)
-                if not completed:
+                if completed:
+                    completed_deals += 1
+                    completed_volume += amount
+                else:
                     ongoing_deals += 1
 
-            for u in [buyer, seller]:
-                if u.startswith("@"):
-                    if u not in all_users:
-                        all_users[u] = {"volume": 0}
-                    all_users[u]["volume"] += amount
-
     if total_deals == 0:
-        return await update.message.reply_text("📊 No deals found for you.")
+        return await update.message.reply_text("📊 No deals found for you!")
 
-    # === Rank Calculation ===
-    sorted_users = sorted(all_users.items(), key=lambda x: x[1]["volume"], reverse=True)
-    rank = next((i + 1 for i, (u, _) in enumerate(sorted_users) if u == user_check), "N/A")
+    avg_deal = total_volume / total_deals if total_deals else 0
 
-    # === Text to Display ===
-    lines = [
-        f"# Participant Stats for {username}",
-        "",
-        f"•  Ranking: {rank}",
-        f"•  Total Volume :  {total_volume:.1f} INR",
-        f"•  Total Deals :  {total_deals}",
-        f"•  Ongoing Deals :  {ongoing_deals}",
-        f"•  Highest Deal :  {highest_deal:.1f} INR"
+    # === IST Time ===
+    IST = timezone(timedelta(hours=5, minutes=30))
+    date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
+
+    # === PDF Creation ===
+    buffer = io.BytesIO()
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        title=f"{username}_stats",
+        rightMargin=40, leftMargin=40,
+        topMargin=60, bottomMargin=40
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        name="TitleStyle", parent=styles['Title'],
+        fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79")
+    )
+    subtitle_style = ParagraphStyle(
+        name="Subtitle", parent=styles['Normal'],
+        fontSize=11, leading=14, textColor=colors.grey, alignment=1
+    )
+    footer_style = ParagraphStyle(
+        name="Footer", parent=styles['Normal'],
+        fontSize=9, textColor=colors.grey, alignment=1
+    )
+
+    elements = []
+    elements.append(Paragraph("<b>LUCKY ESCROW — USER STATS</b>", title_style))
+    elements.append(Paragraph(f"📈 Summary for {username}", subtitle_style))
+    elements.append(Paragraph(f"🕓 Generated on {date_str}", subtitle_style))
+    elements.append(Spacer(1, 20))
+
+    # === Table Data ===
+    data = [
+        ["Metric", "Value"],
+        ["Total Deals", f"{total_deals}"],
+        ["Completed Deals", f"{completed_deals}"],
+        ["Ongoing Deals", f"{ongoing_deals}"],
+        ["Total Volume", f"₹{total_volume:,.2f}"],
+        ["Completed Volume", f"₹{completed_volume:,.2f}"],
+        ["Highest Single Deal", f"₹{highest_deal:,.2f}"],
+        ["Average Deal Size", f"₹{avg_deal:,.2f}"],
     ]
 
-    # === High-resolution white image ===
-    width, height = 2400, 1800
-    bg_color = (255, 255, 255)
-    font_color = (0, 0, 0)
+    table = Table(data, colWidths=[200, 200])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 12),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+         [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
+    ]))
+    elements.append(table)
+    elements.append(Spacer(1, 20))
 
-    img = Image.new("RGB", (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
+    elements.append(Paragraph(
+        "📜 Generated securely by <b>Lucky Escrow Bot</b> — User stats summary report.",
+        footer_style
+    ))
 
-    # Border
-    border_color = (0, 0, 0)
-    draw.rectangle([(20, 20), (width - 20, height - 20)], outline=border_color, width=10)
+    pdf.build(elements)
+    buffer.seek(0)
 
-    # === Load crisp bold fonts ===
-    try:
-        title_font = ImageFont.truetype("DejaVuSans-Bold.ttf", 100)
-        font = ImageFont.truetype("DejaVuSans.ttf", 100)
-    except:
-        font = ImageFont.load_default()
-        title_font = font
-
-    # === Helper to make text bold/dark ===
-    def draw_text_bold(draw, position, text, font, fill):
-        x, y = position
-        for dx in [-2, 0, 2]:
-            for dy in [-2, 0, 2]:
-                draw.text((x+dx, y+dy), text, font=font, fill=fill)
-        draw.text((x, y), text, font=font, fill=fill)
-
-    # === Draw text ===
-    y_text = 130
-    for i, line in enumerate(lines):
-        if i == 0:
-            draw_text_bold(draw, (150, y_text), line, title_font, font_color)
-        else:
-            draw_text_bold(draw, (200, y_text + 20), line, font, font_color)
-        y_text += 130
-
-    # === Footer ===
-    date_str = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %H:%M IST")
-    draw.text((150, height - 150), f"→ Generated on {date_str}", font=font, fill=(100, 100, 100))
-
-    # === Save to memory and send ===
-    bio = io.BytesIO()
-    img.save(bio, "PNG", optimize=True)
-    bio.seek(0)
-
-    await update.message.reply_photo(photo=bio, caption="📋 Your Escrow Stats Summary")
-
+    await update.effective_chat.send_document(
+        document=InputFile(buffer, filename=f"{username.strip('@')}_stats.pdf"),
+        caption=f"📊 Stats Summary for {username}"
+    )
 # === Top 20 Users (Text Output with 🥇🥈🥉 badges) ===
 async def topuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
