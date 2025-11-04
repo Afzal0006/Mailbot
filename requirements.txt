@@ -1,7 +1,7 @@
 python-telegram-bot==20.3
-pymongo
-reportlab
-requests
+pymongo==4.8.0
+reportlab==4.2.2
+requests==2.32.3
 pillow>=10.0.0
-dnspython
-pytz
+dnspython==2.7.0
+pytz==2024.1
