@@ -1117,82 +1117,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
     )
 
-import os
-import subprocess
-import datetime
-from telegram import Update
-from telegram.ext import ContextTypes
 
-MONGO_URI = os.environ.get("MONGO_URI") or "mongodb+srv://afzal99550:afzal99550@cluster0.aqmbh9q.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
-BACKUP_DIR = "mongo_backups"
-
-# ==== RESET DB COMMAND ====
-async def resetdb(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.full_name
-
-    # Only admin allowed
-    if not await is_admin(update):
-        return await update.message.reply_text("❌ Only admins can reset the database!")
-
-    try:
-        await update.message.reply_text(
-            "⚠️ Are you sure you want to reset the MongoDB database?\n"
-            "This will permanently delete **ALL data**.\n\n"
-            "Reply with /confirmreset to proceed."
-        )
-        context.chat_data["confirm_reset"] = True
-    except Exception as e:
-        print(e)
-        await update.message.reply_text("⚠️ Error while initiating reset.")
-
-# ==== CONFIRM RESET COMMAND ====
-async def confirmreset(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.full_name
-
-    if not await is_admin(update):
-        return await update.message.reply_text("❌ You are not authorized!")
-
-    if not context.chat_data.get("confirm_reset"):
-        return await update.message.reply_text("❌ Use /resetdb first!")
-
-    await update.message.reply_text("🧩 Creating backup before reset...")
-
-    try:
-        # === Create backup folder ===
-        os.makedirs(BACKUP_DIR, exist_ok=True)
-        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_name = f"backup_{timestamp}"
-        backup_path = os.path.join(BACKUP_DIR, backup_name)
-
-        # === Run mongodump ===
-        subprocess.run([
-            "mongodump",
-            f"--uri={MONGO_URI}",
-            f"--out={backup_path}"
-        ], check=True)
-
-        # === Zip backup ===
-        subprocess.run(["zip", "-r", f"{backup_path}.zip", backup_path], check=True)
-
-        # === Drop all DBs ===
-        from pymongo import MongoClient
-        client = MongoClient(MONGO_URI)
-        for db_name in client.list_database_names():
-            if db_name not in ("admin", "local", "config"):
-                client.drop_database(db_name)
-        client.close()
-
-        await update.message.reply_text(
-            f"✅ MongoDB reset successfully!\n"
-            f"💾 Backup saved as `{backup_name}.zip` in `{BACKUP_DIR}/` folder."
-        )
-        context.chat_data["confirm_reset"] = False
-
-    except Exception as e:
-        print(e)
-        await update.message.reply_text(f"❌ Error during reset:\n{e}")
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -1213,8 +1138,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(CommandHandler("resetdb", resetdb))
-    app.add_handler(CommandHandler("confirmreset", confirmreset))
+    
 
     print("Bot started... ✅")
     app.run_polling()
