@@ -1072,7 +1072,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 # ======================================================
-# ✅ CONFIRMATION HANDLER: release / relese / refund / cancel
+# ✅ CONFIRMATION HANDLER: release / relese / refund
 # ======================================================
 import pytz
 from datetime import datetime
@@ -1081,14 +1081,14 @@ from telegram.ext import MessageHandler, filters
 IST = pytz.timezone("Asia/Kolkata")
 
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle 'release', 'relese', 'refund', or 'cancel' confirmations."""
+    """Handle 'release', 'relese', or 'refund' confirmations."""
 
     msg = update.message
     if not msg or not msg.text:
         return
 
     text = msg.text.lower().strip()
-    if not any(word in text for word in ("release", "relese", "refund", "cancel")):
+    if not any(word in text for word in ("release", "relese", "refund")):
         return
 
     chat = update.effective_chat
@@ -1099,7 +1099,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # === Must be reply to some message ===
     if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please tag (reply to) the deal message when confirming Release / Refund / Cancel.")
+        return await msg.reply_text("⚠️ Please reply to the deal message when confirming Release / Refund.")
 
     reply_id = str(msg.reply_to_message.message_id)
 
@@ -1110,7 +1110,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     deal = (group_data.get("deals") or {}).get(reply_id)
     if not deal:
-        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the escrow message.")
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
 
     # === Check if already completed ===
     if deal.get("completed"):
@@ -1119,23 +1119,18 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     # === Extract user roles ===
     buyer = str(deal.get("buyer", "")).lower()
     seller = str(deal.get("seller", "")).lower()
-    escrower = str(deal.get("escrower", "")).lower()
 
     # === Action setup ===
     if "refund" in text:
         action = "refund"
         emoji = "🔴"
         title_word = "Refund"
-    elif "cancel" in text:
-        action = "cancel"
-        emoji = "🟢"
-        title_word = "Cancel"
     elif "relese" in text or "release" in text:
         action = "release"
         emoji = "🟢"
         title_word = "Release"
     else:
-        return  # nothing valid
+        return
 
     # === Authorization: only buyer/seller allowed ===
     if username_cmp not in [buyer, seller]:
@@ -1163,6 +1158,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     deal["completed"] = True
     deal["action"] = action
     deal["completed_at"] = datetime.utcnow().isoformat()
+
     g = groups_col.find_one({"_id": chat_id})
     g_deals = g.get("deals", {})
     g_deals[reply_id] = deal
@@ -1203,6 +1199,11 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     except:
         pass
+
+
+# ======================================================
+# 🚀 MAIN FUNCTION (with all handlers)
+# ======================================================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -1225,9 +1226,9 @@ def main():
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
 
-    # ✅ confirmation handler for release/relese/refund/cancel
+    # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
-        filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,
+        filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
         handle_confirmation
     )
     app.add_handler(confirmation_handler)
