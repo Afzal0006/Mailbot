@@ -970,22 +970,36 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     all_deals = []
     for g in groups_col.find({}):
         for d in g.get("deals", {}).values():
-            time_val = d.get("time_added")
+            time_val = d.get("time_added") or d.get("timestamp") or d.get("created_at")
 
-            # Convert timestamp or string time to proper IST date/time
-            if isinstance(time_val, (int, float)):
-                dt = datetime.fromtimestamp(time_val, tz=IST)
-                date_str = dt.strftime("%d %b %Y")
-                time_str = dt.strftime("%I:%M %p")
+            # Handle different formats of date/time
+            date_str = ""
+            time_str = ""
+            if time_val:
+                try:
+                    # Case 1: timestamp (float/int)
+                    if isinstance(time_val, (int, float)):
+                        dt = datetime.fromtimestamp(time_val, tz=IST)
+                    # Case 2: ISO string
+                    elif isinstance(time_val, str):
+                        dt = datetime.fromisoformat(time_val).astimezone(IST)
+                    else:
+                        dt = None
+                    if dt:
+                        date_str = dt.strftime("%d %b %Y")
+                        time_str = dt.strftime("%I:%M %p")
+                except Exception:
+                    date_str = "—"
+                    time_str = "—"
             else:
-                date_str = ""
-                time_str = ""
+                date_str = "—"
+                time_str = "—"
 
             all_deals.append([
-                d.get("buyer", ""),
-                d.get("seller", ""),
-                d.get("escrower", ""),
-                d.get("trade_id", ""),
+                d.get("buyer", "Unknown"),
+                d.get("seller", "Unknown"),
+                d.get("escrower", "Unknown"),
+                d.get("trade_id", "N/A"),
                 f"{d.get('added_amount', 0)} INR",
                 date_str,
                 time_str
@@ -994,8 +1008,8 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not all_deals:
         return await update.message.reply_text("❌ No escrow deals found!")
 
-    # === Sort deals by time ===
-    all_deals.sort(key=lambda x: x[-2])  # Sort by date
+    # === Sort by latest date/time ===
+    all_deals.sort(key=lambda x: x[-2], reverse=True)
 
     # === Add numbering ===
     numbered_deals = []
@@ -1007,7 +1021,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pdf = SimpleDocTemplate(
         buffer,
         pagesize=A4,
-        title=f"All Escrow Deals Summary",
+        title="All Escrow Deals Summary",
         rightMargin=40,
         leftMargin=40,
         topMargin=60,
@@ -1040,8 +1054,6 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     elements = []
-
-    # === Header ===
     elements.append(Paragraph("<b>LUCKY ESCROW SUMMARY</b>", title_style))
     elements.append(Paragraph("All-Time Escrow History", subtitle_style))
     elements.append(Spacer(1, 12))
@@ -1076,6 +1088,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         for g in groups_col.find({})
         for d in g.get("deals", {}).values()
     )
+
     elements.append(Paragraph(
         f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
         "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
