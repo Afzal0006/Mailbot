@@ -951,8 +951,8 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 import io
-import pytz
 from datetime import datetime
+from pytz import timezone
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.platypus import (
@@ -961,26 +961,26 @@ from reportlab.platypus import (
 )
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from telegram import Update, InputFile
-from telegram.ext import ContextTypes
+from telegram.ext import ContextTypes, CommandHandler
 
-
-# Timezone
-IST = pytz.timezone("Asia/Kolkata")
-
+# assume groups_col is already defined (Mongo Collection)
 
 async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    args = context.args
+    kolkata = timezone("Asia/Kolkata")
 
-    # === Determine whose data to fetch ===
-    if args:
-        target_user = args[0].strip()
-        if not target_user.startswith("@"):
-            target_user = "@" + target_user
+    # === if /escrow {username} used ===
+    target_username = None
+    if context.args:
+        arg = context.args[0]
+        if arg.startswith("@"):
+            target_username = arg
+        else:
+            target_username = f"@{arg}"
     else:
-        target_user = f"@{user.username}" if user.username else user.full_name
+        target_username = None
 
-    # === Collect all deals ===
+    # === collect deals ===
     all_deals = []
     for g in groups_col.find({}):
         for d in g.get("deals", {}).values():
@@ -989,18 +989,25 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             escrower = d.get("escrower", "")
             time_val = d.get("time_added")
 
-            # Convert timestamp to IST
+            # Convert timestamp -> local time (Asia/Kolkata)
             if isinstance(time_val, (int, float)):
-                dt_ist = datetime.fromtimestamp(time_val, IST)
-                date_str = dt_ist.strftime("%d %b %Y")
-                time_str = dt_ist.strftime("%I:%M %p")
+                dt_obj = datetime.fromtimestamp(time_val, kolkata)
+                date_str = dt_obj.strftime("%d %b %Y")
+                time_str = dt_obj.strftime("%I:%M %p")
             else:
                 date_str = ""
                 time_str = ""
 
-            # === Mode 1: /escrow ===
-            # (Show all deals for current user)
-            if not args and target_user in [buyer, seller, escrower]:
+            # If specific user requested
+            if target_username:
+                if target_username in [buyer, seller, escrower]:
+                    all_deals.append([
+                        buyer, seller, escrower,
+                        d.get("trade_id", ""),
+                        f"{d.get('added_amount', 0)} INR",
+                        date_str, time_str
+                    ])
+            else:
                 all_deals.append([
                     buyer, seller, escrower,
                     d.get("trade_id", ""),
@@ -1008,81 +1015,49 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     date_str, time_str
                 ])
 
-            # === Mode 2: /escrow @id ===
-            # (Show only deals where that user is escrower)
-            elif args and escrower == target_user:
-                all_deals.append([
-                    buyer, seller, escrower,
-                    d.get("trade_id", ""),
-                    f"{d.get('added_amount', 0)} INR",
-                    date_str, time_str
-                ])
-
-    # === No deals found ===
+    # === validation ===
     if not all_deals:
-        if args:
-            return await update.message.reply_text("❌ No escrow found for that user.")
+        if target_username:
+            return await update.message.reply_text(f"❌ No escrow found for {target_username}")
         else:
-            return await update.message.reply_text("❌ No deals found for you!")
+            return await update.message.reply_text("❌ No escrow found!")
 
-    # === Sort by date ===
-    all_deals.sort(key=lambda x: x[-2])
+    # === sort & add numbers ===
+    all_deals.sort(key=lambda x: x[-2])  # by date
+    numbered_deals = [[str(i + 1)] + deal for i, deal in enumerate(all_deals)]
 
-    # === Numbering ===
-    numbered_deals = [[str(i)] + d for i, d in enumerate(all_deals, 1)]
-
-    # === PDF ===
+    # === PDF generation ===
     buffer = io.BytesIO()
+    username_title = target_username or "All Escrows"
     pdf = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        title=f"{target_user}'s Escrow Summary",
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=60,
-        bottomMargin=40
+        buffer, pagesize=A4, title=f"{username_title} Escrow Summary",
+        rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40
     )
 
     styles = getSampleStyleSheet()
     title_style = ParagraphStyle(
-        name="TitleStyle",
-        parent=styles['Title'],
-        fontSize=22,
-        leading=26,
-        alignment=1,
-        textColor=colors.HexColor("#1F4E79")
+        "TitleStyle", parent=styles["Title"],
+        fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79")
     )
     subtitle_style = ParagraphStyle(
-        name="Subtitle",
-        parent=styles['Normal'],
-        fontSize=11,
-        leading=14,
-        textColor=colors.grey,
-        alignment=1
+        "Subtitle", parent=styles["Normal"],
+        fontSize=11, leading=14, textColor=colors.grey, alignment=1
     )
     footer_style = ParagraphStyle(
-        name="Footer",
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.grey,
-        alignment=1
+        "Footer", parent=styles["Normal"],
+        fontSize=9, textColor=colors.grey, alignment=1
     )
 
     elements = []
+    now_ist = datetime.now(kolkata).strftime("📅 %B %d, %Y • %I:%M %p IST")
 
-    # === Header ===
     elements.append(Paragraph("<b>LUCKY ESCROW SUMMARY</b>", title_style))
-    elements.append(Paragraph(f"Generated for {target_user}", subtitle_style))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(
-        datetime.now(IST).strftime("📅 %B %d, %Y • %I:%M %p IST"),
-        subtitle_style
-    ))
+    elements.append(Paragraph(f"Generated for {username_title}", subtitle_style))
+    elements.append(Paragraph(now_ist, subtitle_style))
     elements.append(Spacer(1, 18))
 
-    # === Table Data ===
+    # === Table ===
     table_data = [["#", "BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT", "DATE", "TIME"]] + numbered_deals
-
     table = Table(table_data, colWidths=[25, 80, 80, 80, 100, 70, 70, 70])
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
@@ -1093,27 +1068,25 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
         ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
         ('FONTSIZE', (0, 1), (-1, -1), 10.5),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-         [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
+
     elements.append(table)
     elements.append(Spacer(1, 20))
 
     # === Footer ===
     total_amount = sum(
-        float(d.get('added_amount', 0))
+        float(d.get("added_amount", 0))
         for g in groups_col.find({})
         for d in g.get("deals", {}).values()
-        if target_user in [d.get("buyer"), d.get("seller"), d.get("escrower")]
+        if not target_username or target_username in [d.get("buyer"), d.get("seller"), d.get("escrower")]
     )
 
     elements.append(Paragraph(
         f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
-        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
-        "This report summarizes all completed and ongoing trades.",
+        "💼 Generated via <b>Lucky Escrow Bot</b><br/>"
+        "Summary includes all ongoing and completed trades.",
         footer_style
     ))
 
@@ -1121,9 +1094,12 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buffer.seek(0)
 
     await update.effective_chat.send_document(
-        document=InputFile(buffer, filename=f"{target_user.strip('@')}_escrow_summary.pdf"),
-        caption=f"📜 Escrow Summary for {target_user}"
+        document=InputFile(buffer, filename=f"{username_title.strip('@')}_escrow_summary.pdf"),
+        caption=f"📜 Escrow Summary for {username_title}"
     )
+
+# === Handler add karne ke liye ===
+app.add_handler(CommandHandler("escrow", escrow))
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
