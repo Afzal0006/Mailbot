@@ -1222,11 +1222,7 @@ def main():
     app.add_handler(CommandHandler("today", today))
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CommandHandler("escrow", escrow))
-    confirmation_handler = MessageHandler(filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,
-    handle_confirmation
-)
-app.add_handler(confirmation_handler)
+    app.add_handler(CommandHandler("escrow", escrow))confirmation_handler = MessageHandler(filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,handle_confirmation)app.add_handler(confirmation_handler)
     
 
     print("Bot started... ✅")
