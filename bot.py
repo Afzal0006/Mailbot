@@ -828,136 +828,92 @@ async def week(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(msg, parse_mode="HTML")
 
 import io
+import pytz
+from datetime import datetime
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.platypus import (
-    SimpleDocTemplate, Table, TableStyle,
-    Paragraph, Spacer
-)
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from telegram import Update, InputFile
 from telegram.ext import ContextTypes
-from datetime import datetime
 
+IST = pytz.timezone("Asia/Kolkata")
 
 async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = f"@{user.username}" if user.username else user.full_name
 
-    # === Collect deals (replace with Mongo data) ===
+    # === Collect deals (from Mongo) ===
     all_deals = []
     for g in groups_col.find({}):
         for d in g.get("deals", {}).values():
             if username in [d.get("buyer"), d.get("seller"), d.get("escrower")]:
+                # Try to extract proper datetime
+                time_val = d.get("time_added") or d.get("created_at") or d.get("timestamp")
+                ts = None
+                if time_val:
+                    try:
+                        if isinstance(time_val, (int, float)):
+                            ts = datetime.fromtimestamp(time_val)
+                        elif isinstance(time_val, str):
+                            ts = datetime.fromisoformat(time_val)
+                    except:
+                        ts = None
                 all_deals.append([
                     d.get("buyer", ""),
                     d.get("seller", ""),
                     d.get("escrower", ""),
                     d.get("trade_id", ""),
                     f"{d.get('added_amount', 0)} INR",
-                    d.get("time_added", "")  # for sorting if available
+                    ts or datetime.min
                 ])
 
     if not all_deals:
-        return await update.message.reply_text(" No deals found for you!")
+        return await update.message.reply_text("📜 No deals found for you!")
 
-    # === Sort by time or trade_id (old → new) ===
-    all_deals.sort(key=lambda x: x[-1])  # sort by time_added (last element)
+    # === Sort by timestamp ===
+    all_deals.sort(key=lambda x: x[-1])
+    numbered_deals = [[str(i)] + deal[:-1] for i, deal in enumerate(all_deals, start=1)]
 
-    # === Add numbering column ===
-    numbered_deals = []
-    for i, deal in enumerate(all_deals, start=1):
-        numbered_deals.append([str(i)] + deal[:-1])  # remove last 'time_added'
-
-    # === Create PDF in memory ===
+    # === Create PDF ===
     buffer = io.BytesIO()
-    pdf = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        title=f"{username}'s Deals Summary",
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=60,
-        bottomMargin=40
-    )
-
+    pdf = SimpleDocTemplate(buffer, pagesize=A4, title=f"{username}_deals",
+                            rightMargin=40, leftMargin=40, topMargin=60, bottomMargin=40)
     styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        name="TitleStyle",
-        parent=styles['Title'],
-        fontSize=22,
-        leading=26,
-        alignment=1,  # center
-        textColor=colors.HexColor("#1F4E79")
-    )
+    title_style = ParagraphStyle(name="TitleStyle", parent=styles['Title'],
+                                 fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79"))
+    subtitle_style = ParagraphStyle(name="Subtitle", parent=styles['Normal'],
+                                    fontSize=11, leading=14, textColor=colors.grey, alignment=1)
+    footer_style = ParagraphStyle(name="Footer", parent=styles['Normal'],
+                                  fontSize=9, textColor=colors.grey, alignment=1)
 
-    subtitle_style = ParagraphStyle(
-        name="Subtitle",
-        parent=styles['Normal'],
-        fontSize=11,
-        leading=14,
-        textColor=colors.grey,
-        alignment=1
-    )
+    elements = [
+        Paragraph("<b>LUCKY ESCROW SUMMARY</b>", title_style),
+        Paragraph(f"Generated for {username}", subtitle_style),
+        Spacer(1, 12),
+        Paragraph(datetime.now(IST).strftime("📅 %B %d, %Y • %I:%M %p IST"), subtitle_style),
+        Spacer(1, 18)
+    ]
 
-    footer_style = ParagraphStyle(
-        name="Footer",
-        parent=styles['Normal'],
-        fontSize=9,
-        textColor=colors.grey,
-        alignment=1
-    )
-
-    elements = []
-
-    # === Header ===
-    elements.append(Paragraph("<b>LUCKY ESCROW SUMMARY</b>", title_style))
-    elements.append(Paragraph(f"Generated for {username}", subtitle_style))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(datetime.now().strftime("📅 %B %d, %Y • %I:%M %p UTC"), subtitle_style))
-    elements.append(Spacer(1, 18))
-
-    # === Table Data ===
     table_data = [["#", "BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT"]] + numbered_deals
-
     table = Table(table_data, colWidths=[30, 100, 100, 100, 130, 80])
     table.setStyle(TableStyle([
-        # Header row
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
         ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
-
-        # Body
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('FONTSIZE', (0, 1), (-1, -1), 11),
-        ('ALIGN', (0, 1), (-1, -1), 'LEFT'),
-        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-
-        # Borders
         ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
-
-        # Alternate row color
         ('ROWBACKGROUNDS', (0, 1), (-1, -1),
          [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
-
-    elements.append(table)
-    elements.append(Spacer(1, 20))
-
-    # === Footer ===
-    elements.append(Paragraph(
-        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
-        "This report summarizes all completed and ongoing trades.",
-        footer_style
-    ))
+    elements += [table, Spacer(1, 20),
+                 Paragraph("💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
+                           "This report summarizes all completed and ongoing trades.",
+                           footer_style)]
 
     pdf.build(elements)
     buffer.seek(0)
 
-    # === Send PDF ===
     await update.effective_chat.send_document(
         document=InputFile(buffer, filename=f"{username.strip('@')}_deals.pdf"),
         caption=f"All deal history for {username}"
