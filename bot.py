@@ -1081,7 +1081,7 @@ from telegram.ext import MessageHandler, filters
 IST = pytz.timezone("Asia/Kolkata")
 
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Handle 'release', 'relese', or 'refund' confirmations."""
+    """Handle 'release', 'relese', or 'refund' confirmations (without completing deal)."""
 
     msg = update.message
     if not msg or not msg.text:
@@ -1097,30 +1097,26 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     username_display = f"@{user.username}" if user.username else user.full_name
     username_cmp = username_display.lower()
 
-    # === Must be reply to some message ===
+    # Must be reply to some message
     if not msg.reply_to_message:
-        return await msg.reply_text(" Please reply to original deal form using Release / Refund.")
+        return await msg.reply_text("⚠️ Please reply to the deal message when confirming Release / Refund.")
 
     reply_id = str(msg.reply_to_message.message_id)
 
-    # === Lookup deal from Mongo ===
+    # Lookup deal from Mongo
     group_data = groups_col.find_one({"_id": chat_id})
     if not group_data:
         return await msg.reply_text("⚠️ No deal data found for this group!")
 
     deal = (group_data.get("deals") or {}).get(reply_id)
     if not deal:
-        return await msg.reply_text(" original deal wale form p reply kr k likh vai .")
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
 
-    # === Check if already completed ===
-    if deal.get("completed"):
-        return await msg.reply_text("☣️ This deal is already completed and cannot be changed.")
-
-    # === Extract user roles ===
+    # Extract user roles
     buyer = str(deal.get("buyer", "")).lower()
     seller = str(deal.get("seller", "")).lower()
 
-    # === Action setup ===
+    # Action setup
     if "refund" in text:
         action = "refund"
         emoji = "🔴"
@@ -1132,14 +1128,14 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     else:
         return
 
-    # === Authorization: only buyer/seller allowed ===
+    # Authorization: only buyer/seller allowed
     if username_cmp not in [buyer, seller]:
         try:
             await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
         except:
             pass
 
-        await chat.send_message(f"🚫 {username_display} has been banned for unauthorized {title_word.lower()} attempt!")
+        await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
         try:
             await context.bot.send_message(
                 LOG_CHANNEL_ID,
@@ -1154,27 +1150,15 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             pass
         return
 
-    # === Authorized: mark completed & update Mongo ===
-    deal["completed"] = True
-    deal["action"] = action
-    deal["completed_at"] = datetime.utcnow().isoformat()
-
-    g = groups_col.find_one({"_id": chat_id})
-    g_deals = g.get("deals", {})
-    g_deals[reply_id] = deal
-    g["deals"] = g_deals
-    groups_col.update_one({"_id": chat_id}, {"$set": g})
-
-    # === Format confirmation message ===
+    # === Only send confirmation message (deal not completed) ===
     now_ist = datetime.now(IST)
     time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
     confirm_msg = (
-        f"{emoji} {title_word} confirmed by {username_display}\n"
+        f"{emoji} {title_word} CONFIRMED by {username_display} (awaiting admin completion)\n"
         f"📆 {time_str}\n"
         f"🆔 #{deal.get('trade_id')}"
     )
 
-    # === Reply under bot's own escrow message ===
     try:
         bot_message_id = int(reply_id)
         await context.bot.send_message(
@@ -1186,11 +1170,11 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     except:
         await msg.reply_text(confirm_msg)
 
-    # === Log confirmation ===
+    # Log confirmation
     try:
         await context.bot.send_message(
             LOG_CHANNEL_ID,
-            f"{emoji} <b>{title_word} Confirmed</b>\n"
+            f"{emoji} <b>{title_word} Confirmed (pending admin)</b>\n"
             f"👤 {username_display}\n"
             f"🆔 Trade ID: #{deal.get('trade_id')}\n"
             f"👥 {chat.title}\n"
@@ -1199,11 +1183,6 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     except:
         pass
-
-
-# ======================================================
-# 🚀 MAIN FUNCTION (with all handlers)
-# ======================================================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
