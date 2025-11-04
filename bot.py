@@ -1071,53 +1071,138 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
     )
 
-# ==== Handle "release" messages ====
+# ======================================================
+# ✅ CONFIRMATION HANDLER: release / relese / refund / cancel
+# ======================================================
+import pytz
+from datetime import datetime
 from telegram.ext import MessageHandler, filters
 
-async def handle_release(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    message = update.message
-    if not message or not message.text:
+IST = pytz.timezone("Asia/Kolkata")
+
+async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle 'release', 'relese', 'refund', or 'cancel' confirmations."""
+
+    msg = update.message
+    if not msg or not msg.text:
         return
 
-    text = message.text.lower()
-    if "release" not in text:
+    text = msg.text.lower().strip()
+    if not any(word in text for word in ("release", "relese", "refund", "cancel")):
         return
 
-    chat_id = str(update.effective_chat.id)
+    chat = update.effective_chat
+    chat_id = str(chat.id)
     user = update.effective_user
-    username = f"@{user.username}".lower() if user.username else user.full_name.lower()
+    username_display = f"@{user.username}" if user.username else user.full_name
+    username_cmp = username_display.lower()
 
-    # === Case C: Not replying to any deal ===
-    if not message.reply_to_message:
-        return await message.reply_text("⚠️ Please tag the deal message!")
+    # === Must be reply to some message ===
+    if not msg.reply_to_message:
+        return await msg.reply_text("⚠️ Please tag (reply to) the deal message when confirming Release / Refund / Cancel.")
 
-    reply_id = str(message.reply_to_message.message_id)
+    reply_id = str(msg.reply_to_message.message_id)
+
+    # === Lookup deal from Mongo ===
     group_data = groups_col.find_one({"_id": chat_id})
     if not group_data:
-        return await message.reply_text("⚠️ No deal data found for this group!")
+        return await msg.reply_text("⚠️ No deal data found for this group!")
 
-    deal = group_data.get("deals", {}).get(reply_id)
+    deal = (group_data.get("deals") or {}).get(reply_id)
     if not deal:
-        return await message.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the escrow message.")
 
+    # === Check if already completed ===
+    if deal.get("completed"):
+        return await msg.reply_text("⚠️ This deal is already completed and cannot be changed.")
+
+    # === Extract user roles ===
     buyer = str(deal.get("buyer", "")).lower()
     seller = str(deal.get("seller", "")).lower()
     escrower = str(deal.get("escrower", "")).lower()
 
-    # === Case A: Buyer or Seller ===
-    if username in [buyer, seller]:
-        return await message.reply_text("✅ This is ok")
+    # === Action setup ===
+    if "refund" in text:
+        action = "refund"
+        emoji = "🔴"
+        title_word = "Refund"
+    elif "cancel" in text:
+        action = "cancel"
+        emoji = "🟢"
+        title_word = "Cancel"
+    elif "relese" in text or "release" in text:
+        action = "release"
+        emoji = "🟢"
+        title_word = "Release"
+    else:
+        return  # nothing valid
 
-    # === Case B: Unauthorized user ===
+    # === Authorization: only buyer/seller allowed ===
+    if username_cmp not in [buyer, seller]:
+        try:
+            await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
+        except:
+            pass
+
+        await chat.send_message(f"🚫 {username_display} has been banned for unauthorized {title_word.lower()} attempt!")
+        try:
+            await context.bot.send_message(
+                LOG_CHANNEL_ID,
+                f"🔴 <b>Unauthorized {title_word} Attempt</b>\n"
+                f"👤 {username_display}\n"
+                f"🆔 Trade ID: #{deal.get('trade_id')}\n"
+                f"👥 {chat.title}\n"
+                f"🕓 {datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')}",
+                parse_mode="HTML"
+            )
+        except:
+            pass
+        return
+
+    # === Authorized: mark completed & update Mongo ===
+    deal["completed"] = True
+    deal["action"] = action
+    deal["completed_at"] = datetime.utcnow().isoformat()
+    g = groups_col.find_one({"_id": chat_id})
+    g_deals = g.get("deals", {})
+    g_deals[reply_id] = deal
+    g["deals"] = g_deals
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    # === Format confirmation message ===
+    now_ist = datetime.now(IST)
+    time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
+    confirm_msg = (
+        f"{emoji} {title_word} confirmed by {username_display}\n"
+        f"📆 {time_str}\n"
+        f"🆔 #{deal.get('trade_id')}"
+    )
+
+    # === Reply under bot's own escrow message ===
     try:
-        await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
-        await update.effective_chat.send_message(
-            f"🚫 {username} has been banned for unauthorized release attempt!"
+        bot_message_id = int(reply_id)
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text=confirm_msg,
+            reply_to_message_id=bot_message_id,
+            parse_mode="HTML"
         )
-    except Exception as e:
-        await update.effective_chat.send_message(f"⚠️ Failed to ban user: {e}")
+    except:
+        await msg.reply_text(confirm_msg)
 
-
+    # === Log confirmation ===
+    try:
+        await context.bot.send_message(
+            LOG_CHANNEL_ID,
+            f"{emoji} <b>{title_word} Confirmed</b>\n"
+            f"👤 {username_display}\n"
+            f"🆔 Trade ID: #{deal.get('trade_id')}\n"
+            f"👥 {chat.title}\n"
+            f"📆 {time_str}",
+            parse_mode="HTML"
+        )
+    except:
+        pass
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -1138,7 +1223,11 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_release))
+    confirmation_handler = MessageHandler(
+    filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,
+    handle_confirmation
+)
+app.add_handler(confirmation_handler)
     
 
     print("Bot started... ✅")
