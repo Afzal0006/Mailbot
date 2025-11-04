@@ -81,15 +81,20 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg, parse_mode="HTML")
 
+import re
+import random
+import pytz
 from datetime import datetime
-import random, re
 from telegram import Update
 from telegram.ext import ContextTypes
+
+IST = pytz.timezone("Asia/Kolkata")
 
 # ==== Add deal ====
 async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
+
     try:
         await update.message.delete()
     except:
@@ -107,6 +112,7 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_id = str(update.message.reply_to_message.message_id)
     init_group(chat_id)
 
+    # === Extract Buyer & Seller ===
     buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
     seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
 
@@ -114,19 +120,26 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     seller = seller_match.group(1).strip() if seller_match else "Unknown"
 
     g = groups_col.find_one({"_id": chat_id})
-    deals = g["deals"]
+    deals = g.get("deals", {})
 
     escrower = extract_username_from_user(update.effective_user)
     trade_id = f"TID{random.randint(100000, 999999)}"
 
-    # ✅ Added "escrower" field
+    # ✅ Add timestamp (for /escrow report)
+    current_time = datetime.now(IST)
+    timestamp = current_time.timestamp()
+    iso_time = current_time.isoformat()
+
+    # ✅ Save to database with timestamp
     deals[reply_id] = {
         "trade_id": trade_id,
         "added_amount": amount,
         "completed": False,
         "buyer": buyer,
         "seller": seller,
-        "escrower": escrower
+        "escrower": escrower,
+        "time_added": timestamp,     # for PDF date/time
+        "created_at": iso_time
     }
 
     g["deals"] = deals
@@ -134,6 +147,7 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     update_escrower_stats(chat_id, escrower, amount)
 
+    # ✅ Message without time (as you want)
     msg = (
         f"✅ <b>Amount Received!</b>\n"
         "────────────────\n"
@@ -150,7 +164,6 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.reply_to_message.message_id,
         parse_mode="HTML"
     )
-
 
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
