@@ -716,8 +716,8 @@ async def mydeals(update, context, page=0):
 
 from datetime import datetime, timedelta
 
-# ==== Daily Summary ====
-async def daily(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# ==== today Summary ====
+async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return await update.message.reply_text("❌ Only admins can use this command!")
 
@@ -968,7 +968,7 @@ def main():
     app.add_handler(CommandHandler("adminlist", admin_list))
     app.add_handler(CommandHandler("holding", holding))
     app.add_handler(CommandHandler("mydeals", mydeals))
-    app.add_handler(CommandHandler("daily", daily))
+    app.add_handler(CommandHandler("today", today))
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
 
