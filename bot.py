@@ -1205,6 +1205,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         pass
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_deal))
     app.add_handler(CommandHandler("complete", complete_deal))
@@ -1222,11 +1223,18 @@ def main():
     app.add_handler(CommandHandler("today", today))
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CommandHandler("escrow", escrow))confirmation_handler = MessageHandler(filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,handle_confirmation)app.add_handler(confirmation_handler)
-    
+    app.add_handler(CommandHandler("escrow", escrow))
+
+    # ✅ confirmation handler for release/relese/refund/cancel
+    confirmation_handler = MessageHandler(
+        filters.Regex(r"(?i)\b(release|relese|refund|cancel)\b") & ~filters.COMMAND,
+        handle_confirmation
+    )
+    app.add_handler(confirmation_handler)
 
     print("Bot started... ✅")
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
