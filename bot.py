@@ -1099,7 +1099,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # === Must be reply to some message ===
     if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please reply to the deal message when confirming Release / Refund.")
+        return await msg.reply_text(" Please reply to original deal form using Release / Refund.")
 
     reply_id = str(msg.reply_to_message.message_id)
 
@@ -1110,11 +1110,11 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     deal = (group_data.get("deals") or {}).get(reply_id)
     if not deal:
-        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
+        return await msg.reply_text(" original deal wale form p reply kr k likh vai .")
 
     # === Check if already completed ===
     if deal.get("completed"):
-        return await msg.reply_text("⚠️ This deal is already completed and cannot be changed.")
+        return await msg.reply_text("☣️ This deal is already completed and cannot be changed.")
 
     # === Extract user roles ===
     buyer = str(deal.get("buyer", "")).lower()
