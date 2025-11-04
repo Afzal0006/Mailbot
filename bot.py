@@ -1071,6 +1071,52 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
     )
 
+# ==== Handle "release" messages ====
+from telegram.ext import MessageHandler, filters
+
+async def handle_release(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    message = update.message
+    if not message or not message.text:
+        return
+
+    text = message.text.lower()
+    if "release" not in text:
+        return
+
+    chat_id = str(update.effective_chat.id)
+    user = update.effective_user
+    username = f"@{user.username}".lower() if user.username else user.full_name.lower()
+
+    # === Case C: Not replying to any deal ===
+    if not message.reply_to_message:
+        return await message.reply_text("⚠️ Please tag the deal message!")
+
+    reply_id = str(message.reply_to_message.message_id)
+    group_data = groups_col.find_one({"_id": chat_id})
+    if not group_data:
+        return await message.reply_text("⚠️ No deal data found for this group!")
+
+    deal = group_data.get("deals", {}).get(reply_id)
+    if not deal:
+        return await message.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
+
+    buyer = str(deal.get("buyer", "")).lower()
+    seller = str(deal.get("seller", "")).lower()
+    escrower = str(deal.get("escrower", "")).lower()
+
+    # === Case A: Buyer or Seller ===
+    if username in [buyer, seller]:
+        return await message.reply_text("✅ This is ok")
+
+    # === Case B: Unauthorized user ===
+    try:
+        await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
+        await update.effective_chat.send_message(
+            f"🚫 {username} has been banned for unauthorized release attempt!"
+        )
+    except Exception as e:
+        await update.effective_chat.send_message(f"⚠️ Failed to ban user: {e}")
+
 
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1092,6 +1138,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_release))
     
 
     print("Bot started... ✅")
