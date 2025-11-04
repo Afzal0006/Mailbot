@@ -468,8 +468,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["1", "Total Deals", f"{total_deals}"],
         ["2", "Completed Deals", f"{completed_deals}"],
         ["3", "Ongoing Deals", f"{ongoing_deals}"],
-        ["4", "Total Volume", f"₹{total_volume:,.2f} INT"],
-        ["5", "Highest Deal", f"₹{highest_deal:,.2f} INR"],
+        ["4", "Total Volume", f"{total_volume:,.2f} INR"],
+        ["5", "Highest Deal", f"{highest_deal:,.2f} INR"],
     ]
 
     table = Table(table_data, colWidths=[30, 200, 200])
