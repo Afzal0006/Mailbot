@@ -246,7 +246,6 @@ async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"🆔 Trade ID: #{trade_id}\n"
             f"💰 Fee     : ₹{fee}\n"
             f"🛡️ Escrowed by {escrower}\n"
-            f"📆 Date: {datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')}\n"
             f"📌 Group: {update.effective_chat.title} ({update.effective_chat.id})"
         )
         await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
