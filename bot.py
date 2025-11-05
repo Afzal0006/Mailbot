@@ -1103,7 +1103,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     # Must reply to deal message
     if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please reply to the deal message when confirming Release / Refund.")
+        return await msg.reply_text("⚠️ Please reply to the deal message using confirming Release / Refund.")
 
     reply_id = str(msg.reply_to_message.message_id)
 
@@ -1115,7 +1115,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     deals = group_data.get("deals") or {}
     deal = deals.get(reply_id)
     if not deal:
-        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct escrow message.")
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct deal form ")
 
     # Extract buyer/seller usernames (normalized)
     buyer = str(deal.get("buyer", "")).lower()
@@ -1143,7 +1143,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         if username_cmp == seller:
             # Seller trying release → not allowed
             return await msg.reply_text(
-                f"🟡 You are {username_display} (Seller)\nFor release, need confirmation of {buyer}."
+                f"🟥 You are {username_display} assign as a seller\nFor release, need confirmation of {buyer}."
             )
         elif username_cmp != buyer:
             # Unknown person
@@ -1170,7 +1170,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         if username_cmp == buyer:
             # Buyer trying refund → not allowed
             return await msg.reply_text(
-                f"🟡 You are {username_display} (Buyer)\nFor refund, need confirmation of {seller}."
+                f"🟥 You are {username_display} assign as a buyer\nFor refund, need confirmation of {seller}."
             )
         elif username_cmp != seller:
             # Unknown person
