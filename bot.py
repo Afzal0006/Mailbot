@@ -1076,10 +1076,14 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ======================================================
 import pytz
 from datetime import datetime
-from telegram.ext import MessageHandler, filters
+from telegram import Update
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, ContextTypes, filters
+)
 
 IST = pytz.timezone("Asia/Kolkata")
 
+# === Confirmation Handler ===
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Handle release/relese/refund confirmations with proper role logic."""
 
@@ -1189,7 +1193,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 pass
             return
 
-    # If reached here → confirmation is valid
+    # ✅ If reached here → confirmation is valid
     now_ist = datetime.now(IST)
     time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
 
@@ -1230,12 +1234,33 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         pass
 
 
-# === Main (attach to app) ===
+# ======================================================
+# ✅ MAIN APP SETUP
+# ======================================================
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
-    # ... other command handlers ...
+    # === Command Handlers ===
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("add", add_deal))
+    app.add_handler(CommandHandler("complete", complete_deal))
+    app.add_handler(CommandHandler("update", update_deal))
+    app.add_handler(CommandHandler("status", deal_status))
+    app.add_handler(CommandHandler("stats", stats))
+    app.add_handler(CommandHandler("gstats", global_stats))
+    app.add_handler(CommandHandler("topuser", topuser))
+    app.add_handler(CommandHandler("ongoing", ongoing_deals))
+    app.add_handler(CommandHandler("addadmin", add_admin))
+    app.add_handler(CommandHandler("removeadmin", remove_admin))
+    app.add_handler(CommandHandler("adminlist", admin_list))
+    app.add_handler(CommandHandler("holding", holding))
+    app.add_handler(CommandHandler("mydeals", mydeals))
+    app.add_handler(CommandHandler("today", today))
+    app.add_handler(CommandHandler("week", week))
+    app.add_handler(CommandHandler("history", history))
+    app.add_handler(CommandHandler("escrow", escrow))
 
+    # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
         filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
         handle_confirmation
