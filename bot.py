@@ -1177,7 +1177,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
             except:
                 pass
-            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
+            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation nikl bc ")
             try:
                 await context.bot.send_message(
                     LOG_CHANNEL_ID,
