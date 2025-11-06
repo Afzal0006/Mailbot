@@ -1271,4 +1271,5 @@ def main():
     app.run_polling()
 
 
-if name == "main": main()
+if __name__ == "__main__":
+    main()
