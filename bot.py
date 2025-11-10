@@ -1533,18 +1533,7 @@ def main():
     app.add_handler(CommandHandler("today", today))
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
-    app.add_handler(CommandHandler("escrow", escrow))
-    # Register handlers (prefix names to avoid collision)
-    app.add_handler(CommandHandler("start", start_cmd))
-    app.add_handler(CommandHandler("helpqr", help_cmd))
-    app.add_handler(CommandHandler("save", save_cmd))
-    app.add_handler(CommandHandler("listqr", list_cmd))
-    app.add_handler(CommandHandler("deleteqr", delete_cmd))
-    app.add_handler(CommandHandler("addadmin", addadmin_cmd))
-    app.add_handler(CommandHandler("removeadmin", removeadmin_cmd))
-
-    # A catch-all command handler for dynamic commands (e.g. /food 100)
-    app.add_handler(MessageHandler(filters.COMMAND, dynamic_qr_cmd))
+    app.add_handler(CommandHandler("escrow", escrow))    
     
 
     # ✅ confirmation handler for release/relese/refund
