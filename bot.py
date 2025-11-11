@@ -480,7 +480,43 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     target_check = target_username.lower().strip()
 
-    # ==== Stats variables ====
+import io
+from datetime import datetime, timezone, timedelta
+from telegram import Update, InputFile
+from telegram.ext import ContextTypes
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+
+# ==== /stats Command ====
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    message = update.message
+    args = context.args
+
+    # ======================================================
+    # ✅ Determine Target User (3 Cases)
+    # ======================================================
+    if message.reply_to_message:  # case 1: reply to someone
+        replied_user = message.reply_to_message.from_user
+        target_username = f"@{replied_user.username}" if replied_user.username else replied_user.full_name
+    elif args:  # case 2: /stats @username
+        raw = args[0].strip()
+        if not raw.startswith("@"):
+            raw = "@" + raw
+        target_username = raw
+    else:  # case 3: self
+        target_username = f"@{user.username}" if user.username else user.full_name
+
+    target_display = target_username
+    # ✅ Normalize (remove @ and lowercase for comparison)
+    target_check = target_username.lower().lstrip("@").strip()
+
+    # ======================================================
+    # ✅ Initialize Stats Variables
+    # ======================================================
     total_deals = 0
     total_volume = 0.0
     completed_deals = 0
@@ -488,16 +524,21 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     highest_deal = 0.0
     completed_volume = 0.0
 
-    # ==== Find deals ====
+    # ======================================================
+    # ✅ Fetch Deals from DB
+    # ======================================================
     for g in groups_col.find({}):
-        for deal in g.get("deals", {}).values():
+        deals = g.get("deals", {})
+        for deal in deals.values():
             if not deal:
                 continue
-            buyer = str(deal.get("buyer", "")).lower().strip()
-            seller = str(deal.get("seller", "")).lower().strip()
+
+            buyer = str(deal.get("buyer", "")).lower().lstrip("@").strip()
+            seller = str(deal.get("seller", "")).lower().lstrip("@").strip()
             amount = float(deal.get("added_amount", 0))
             completed = bool(deal.get("completed", False))
 
+            # ✅ Match buyer/seller with target user
             if target_check in [buyer, seller]:
                 total_deals += 1
                 total_volume += amount
@@ -508,14 +549,18 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 else:
                     ongoing_deals += 1
 
+    # ======================================================
+    # ✅ No Deals Found
+    # ======================================================
     if total_deals == 0:
         return await message.reply_text(f"📊 No deals found for {target_display}!")
 
-    # ==== Date ====
+    # ======================================================
+    # ✅ Generate PDF
+    # ======================================================
     IST = timezone(timedelta(hours=5, minutes=30))
     date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
 
-    # ==== Create PDF ====
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(
         buffer,
@@ -546,7 +591,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
     elements.append(Spacer(1, 20))
 
-    # ==== Table ====
+    # Table data
     table_data = [
         ["#", "Metric", "Value"],
         ["1", "Total Deals", f"{total_deals}"],
@@ -571,7 +616,6 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements.append(table)
     elements.append(Spacer(1, 20))
-
     elements.append(Paragraph(
         "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
         "This summary shows your total trading performance.",
@@ -581,7 +625,6 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     pdf.build(elements)
     buffer.seek(0)
 
-    # ==== Send PDF ====
     await update.effective_chat.send_document(
         document=InputFile(buffer, filename=f"{target_display.strip('@')}_stats.pdf"),
         caption=f"📊 Stats Summary for {target_display}"
