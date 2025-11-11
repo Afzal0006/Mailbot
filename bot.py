@@ -461,20 +461,26 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 # ==== /stats Command ====
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    message = update.message
     args = context.args
 
-    # --- Determine target user ---
-    if args:
-        target_username = args[0].strip().lower()
+    # ==== Determine target user ====
+    if args:  # case 1: /stats @username
+        target_username = args[0].strip()
         if not target_username.startswith("@"):
             target_username = f"@{target_username}"
-    elif update.message.reply_to_message:
-        target_username = f"@{update.message.reply_to_message.from_user.username}".lower()
-    else:
-        target_username = f"@{user.username}".lower() if user.username else user.full_name.lower()
+        target_display = target_username
+    elif message.reply_to_message:  # case 2: reply to a user
+        replied_user = message.reply_to_message.from_user
+        target_username = f"@{replied_user.username}" if replied_user.username else replied_user.full_name
+        target_display = target_username
+    else:  # case 3: self
+        target_username = f"@{user.username}" if user.username else user.full_name
+        target_display = target_username
 
-    target_display = target_username
+    target_check = target_username.lower().strip()
 
+    # ==== Stats variables ====
     total_deals = 0
     total_volume = 0.0
     completed_deals = 0
@@ -482,35 +488,17 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     highest_deal = 0.0
     completed_volume = 0.0
 
-    # ===== Gather all users' total volume for ranking =====
-    user_volumes = {}
-
+    # ==== Find deals ====
     for g in groups_col.find({}):
         for deal in g.get("deals", {}).values():
             if not deal:
                 continue
-
             buyer = str(deal.get("buyer", "")).lower().strip()
             seller = str(deal.get("seller", "")).lower().strip()
             amount = float(deal.get("added_amount", 0))
             completed = bool(deal.get("completed", False))
 
-            for participant in [buyer, seller]:
-                if participant:
-                    user_volumes[participant] = user_volumes.get(participant, 0) + amount
-
-    # ===== Find current user's deals =====
-    for g in groups_col.find({}):
-        for deal in g.get("deals", {}).values():
-            if not deal:
-                continue
-
-            buyer = str(deal.get("buyer", "")).lower().strip()
-            seller = str(deal.get("seller", "")).lower().strip()
-            amount = float(deal.get("added_amount", 0))
-            completed = bool(deal.get("completed", False))
-
-            if target_username in [buyer, seller]:
+            if target_check in [buyer, seller]:
                 total_deals += 1
                 total_volume += amount
                 highest_deal = max(highest_deal, amount)
@@ -521,19 +509,13 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     ongoing_deals += 1
 
     if total_deals == 0:
-        return await update.message.reply_text(f"📊 No deals found for {target_display}!")
+        return await message.reply_text(f"📊 No deals found for {target_display}!")
 
-    # ===== Ranking Logic =====
-    sorted_users = sorted(user_volumes.items(), key=lambda x: x[1], reverse=True)
-    rank = next((i + 1 for i, (u, v) in enumerate(sorted_users) if u == target_username), None)
-    total_users = len(sorted_users)
-    rank_str = f"#{rank} out of {total_users}" if rank else "N/A"
-
-    # ===== Date & Time =====
+    # ==== Date ====
     IST = timezone(timedelta(hours=5, minutes=30))
     date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
 
-    # ===== Prepare PDF =====
+    # ==== Create PDF ====
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(
         buffer,
@@ -564,15 +546,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
     elements.append(Spacer(1, 20))
 
-    # ===== Table Data =====
+    # ==== Table ====
     table_data = [
         ["#", "Metric", "Value"],
-        ["1", "Ranking", rank_str],
-        ["2", "Total Deals", f"{total_deals}"],
-        ["3", "Completed Deals", f"{completed_deals}"],
-        ["4", "Ongoing Deals", f"{ongoing_deals}"],
-        ["5", "Total Volume", f"{total_volume:,.2f} INR"],
-        ["6", "Highest Deal", f"{highest_deal:,.2f} INR"],
+        ["1", "Total Deals", f"{total_deals}"],
+        ["2", "Completed Deals", f"{completed_deals}"],
+        ["3", "Ongoing Deals", f"{ongoing_deals}"],
+        ["4", "Total Volume", f"{total_volume:,.2f} INR"],
+        ["5", "Highest Deal", f"{highest_deal:,.2f} INR"],
     ]
 
     table = Table(table_data, colWidths=[30, 200, 200])
@@ -593,13 +574,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements.append(Paragraph(
         "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
-        "This summary shows total trading performance.",
+        "This summary shows your total trading performance.",
         footer_style
     ))
 
     pdf.build(elements)
     buffer.seek(0)
 
+    # ==== Send PDF ====
     await update.effective_chat.send_document(
         document=InputFile(buffer, filename=f"{target_display.strip('@')}_stats.pdf"),
         caption=f"📊 Stats Summary for {target_display}"
