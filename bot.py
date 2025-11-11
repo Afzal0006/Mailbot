@@ -1118,13 +1118,33 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ======================================================
 
 from datetime import datetime, timezone, timedelta
-from telegram import Update
+from telegram import Update, User
 from telegram.ext import ContextTypes
 
-# ==== /stats (clean text version) ====
+# ==== /stats (multi-mode text version) ====
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.full_name
+    msg = update.message
+    args = context.args
+
+    # ==== Detect target user ====
+    target_user = None
+
+    # 1️⃣ If tagged in reply
+    if msg.reply_to_message:
+        target_user = msg.reply_to_message.from_user
+
+    # 2️⃣ If username mentioned in args
+    elif args:
+        username_arg = args[0].strip()
+        if not username_arg.startswith("@"):
+            username_arg = f"@{username_arg}"
+        target_user = User(id=0, first_name=username_arg, is_bot=False, username=username_arg[1:])
+
+    # 3️⃣ Default = self
+    else:
+        target_user = msg.from_user
+
+    username = f"@{target_user.username}" if target_user.username else target_user.full_name
     user_check = username.lower().strip()
 
     total_deals = 0
@@ -1144,7 +1164,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
             amount = float(deal.get("added_amount", 0) or 0)
             completed = deal.get("completed", False)
 
-            # User specific stats
+            # For this target user
             if user_check in [buyer, seller]:
                 total_deals += 1
                 total_volume += amount
@@ -1152,7 +1172,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 if not completed:
                     ongoing_deals += 1
 
-            # Global stats for ranking
+            # For global ranking
             for u in [buyer, seller]:
                 if u.startswith("@"):
                     all_users.setdefault(u, {"volume": 0})
@@ -1160,14 +1180,14 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # === No deals ===
     if total_deals == 0:
-        return await update.message.reply_text("📊 No deals found for you.")
+        return await msg.reply_text(f"📊 No deals found for {username}.")
 
-    # === Calculate Rank (by total volume) ===
+    # === Rank Calculation (by total volume) ===
     sorted_users = sorted(all_users.items(), key=lambda x: x[1]["volume"], reverse=True)
     rank = next((i + 1 for i, (u, _) in enumerate(sorted_users) if u == user_check), "N/A")
 
-    # === Prepare reply text ===
-    msg = (
+    # === Format reply ===
+    msg_text = (
         f"📊 Participant Stats for {username}\n\n"
         f"👑 Ranking: {rank}\n"
         f"📈 Total Volume: ₹{total_volume:,.1f}\n"
@@ -1176,7 +1196,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💳 Highest Deal - ₹{highest_deal:,.1f}"
     )
 
-    await update.message.reply_text(msg)
+    await msg.reply_text(msg_text)
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
