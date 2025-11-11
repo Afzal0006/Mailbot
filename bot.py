@@ -449,6 +449,109 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         name="Subtitle", parent=styles['Normal'],
         fontSize=11, leading=14, textColor=colors.grey, alignment=1
     )
+import io
+from datetime import datetime, timezone, timedelta
+from telegram import Update, InputFile
+from telegram.ext import ContextTypes
+from reportlab.lib import colors
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+
+# ==== /stats Command ====
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    args = context.args
+
+    # --- Determine target user ---
+    if args:
+        target_username = args[0].strip().lower()
+        if not target_username.startswith("@"):
+            target_username = f"@{target_username}"
+    elif update.message.reply_to_message:
+        target_username = f"@{update.message.reply_to_message.from_user.username}".lower()
+    else:
+        target_username = f"@{user.username}".lower() if user.username else user.full_name.lower()
+
+    target_display = target_username
+
+    total_deals = 0
+    total_volume = 0.0
+    completed_deals = 0
+    ongoing_deals = 0
+    highest_deal = 0.0
+    completed_volume = 0.0
+
+    # ===== Gather all users' total volume for ranking =====
+    user_volumes = {}
+
+    for g in groups_col.find({}):
+        for deal in g.get("deals", {}).values():
+            if not deal:
+                continue
+
+            buyer = str(deal.get("buyer", "")).lower().strip()
+            seller = str(deal.get("seller", "")).lower().strip()
+            amount = float(deal.get("added_amount", 0))
+            completed = bool(deal.get("completed", False))
+
+            for participant in [buyer, seller]:
+                if participant:
+                    user_volumes[participant] = user_volumes.get(participant, 0) + amount
+
+    # ===== Find current user's deals =====
+    for g in groups_col.find({}):
+        for deal in g.get("deals", {}).values():
+            if not deal:
+                continue
+
+            buyer = str(deal.get("buyer", "")).lower().strip()
+            seller = str(deal.get("seller", "")).lower().strip()
+            amount = float(deal.get("added_amount", 0))
+            completed = bool(deal.get("completed", False))
+
+            if target_username in [buyer, seller]:
+                total_deals += 1
+                total_volume += amount
+                highest_deal = max(highest_deal, amount)
+                if completed:
+                    completed_deals += 1
+                    completed_volume += amount
+                else:
+                    ongoing_deals += 1
+
+    if total_deals == 0:
+        return await update.message.reply_text(f"📊 No deals found for {target_display}!")
+
+    # ===== Ranking Logic =====
+    sorted_users = sorted(user_volumes.items(), key=lambda x: x[1], reverse=True)
+    rank = next((i + 1 for i, (u, v) in enumerate(sorted_users) if u == target_username), None)
+    total_users = len(sorted_users)
+    rank_str = f"#{rank} out of {total_users}" if rank else "N/A"
+
+    # ===== Date & Time =====
+    IST = timezone(timedelta(hours=5, minutes=30))
+    date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
+
+    # ===== Prepare PDF =====
+    buffer = io.BytesIO()
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        title=f"{target_display}_stats",
+        rightMargin=40, leftMargin=40,
+        topMargin=60, bottomMargin=40
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        name="TitleStyle", parent=styles['Title'],
+        fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79")
+    )
+    subtitle_style = ParagraphStyle(
+        name="Subtitle", parent=styles['Normal'],
+        fontSize=11, leading=14, textColor=colors.grey, alignment=1
+    )
     footer_style = ParagraphStyle(
         name="Footer", parent=styles['Normal'],
         fontSize=9, textColor=colors.grey, alignment=1
@@ -456,19 +559,20 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements = []
     elements.append(Paragraph("<b>LUCKY ESCROW — STATS SUMMARY</b>", title_style))
-    elements.append(Paragraph(f"📋 Generated for {username}", subtitle_style))
+    elements.append(Paragraph(f"📋 Generated for {target_display}", subtitle_style))
     elements.append(Spacer(1, 12))
     elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
     elements.append(Spacer(1, 20))
 
-    # === Table Data ===
+    # ===== Table Data =====
     table_data = [
         ["#", "Metric", "Value"],
-        ["1", "Total Deals", f"{total_deals}"],
-        ["2", "Completed Deals", f"{completed_deals}"],
-        ["3", "Ongoing Deals", f"{ongoing_deals}"],
-        ["4", "Total Volume", f"{total_volume:,.2f} INR"],
-        ["5", "Highest Deal", f"{highest_deal:,.2f} INR"],
+        ["1", "Ranking", rank_str],
+        ["2", "Total Deals", f"{total_deals}"],
+        ["3", "Completed Deals", f"{completed_deals}"],
+        ["4", "Ongoing Deals", f"{ongoing_deals}"],
+        ["5", "Total Volume", f"{total_volume:,.2f} INR"],
+        ["6", "Highest Deal", f"{highest_deal:,.2f} INR"],
     ]
 
     table = Table(table_data, colWidths=[30, 200, 200])
@@ -489,7 +593,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements.append(Paragraph(
         "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
-        "This summary shows your total trading performance.",
+        "This summary shows total trading performance.",
         footer_style
     ))
 
@@ -497,8 +601,8 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buffer.seek(0)
 
     await update.effective_chat.send_document(
-        document=InputFile(buffer, filename=f"{username.strip('@')}_stats.pdf"),
-        caption=f"📊 Stats Summary for {username}"
+        document=InputFile(buffer, filename=f"{target_display.strip('@')}_stats.pdf"),
+        caption=f"📊 Stats Summary for {target_display}"
     )
 # === Top 20 Users (Text Output with 🥇🥈🥉 badges) ===
 async def topuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
