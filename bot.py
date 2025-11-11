@@ -520,115 +520,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     total_deals = 0
     total_volume = 0.0
     completed_deals = 0
-    ongoing_deals = 0
-    highest_deal = 0.0
-    completed_volume = 0.0
 
-    # ======================================================
-    # ✅ Fetch Deals from DB
-    # ======================================================
-    for g in groups_col.find({}):
-        deals = g.get("deals", {})
-        for deal in deals.values():
-            if not deal:
-                continue
-
-            buyer = str(deal.get("buyer", "")).lower().lstrip("@").strip()
-            seller = str(deal.get("seller", "")).lower().lstrip("@").strip()
-            amount = float(deal.get("added_amount", 0))
-            completed = bool(deal.get("completed", False))
-
-            # ✅ Match buyer/seller with target user
-            if target_check in [buyer, seller]:
-                total_deals += 1
-                total_volume += amount
-                highest_deal = max(highest_deal, amount)
-                if completed:
-                    completed_deals += 1
-                    completed_volume += amount
-                else:
-                    ongoing_deals += 1
-
-    # ======================================================
-    # ✅ No Deals Found
-    # ======================================================
-    if total_deals == 0:
-        return await message.reply_text(f"📊 No deals found for {target_display}!")
-
-    # ======================================================
-    # ✅ Generate PDF
-    # ======================================================
-    IST = timezone(timedelta(hours=5, minutes=30))
-    date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
-
-    buffer = io.BytesIO()
-    pdf = SimpleDocTemplate(
-        buffer,
-        pagesize=A4,
-        title=f"{target_display}_stats",
-        rightMargin=40, leftMargin=40,
-        topMargin=60, bottomMargin=40
-    )
-
-    styles = getSampleStyleSheet()
-    title_style = ParagraphStyle(
-        name="TitleStyle", parent=styles['Title'],
-        fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79")
-    )
-    subtitle_style = ParagraphStyle(
-        name="Subtitle", parent=styles['Normal'],
-        fontSize=11, leading=14, textColor=colors.grey, alignment=1
-    )
-    footer_style = ParagraphStyle(
-        name="Footer", parent=styles['Normal'],
-        fontSize=9, textColor=colors.grey, alignment=1
-    )
-
-    elements = []
-    elements.append(Paragraph("<b>LUCKY ESCROW — STATS SUMMARY</b>", title_style))
-    elements.append(Paragraph(f"📋 Generated for {target_display}", subtitle_style))
-    elements.append(Spacer(1, 12))
-    elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
-    elements.append(Spacer(1, 20))
-
-    # Table data
-    table_data = [
-        ["#", "Metric", "Value"],
-        ["1", "Total Deals", f"{total_deals}"],
-        ["2", "Completed Deals", f"{completed_deals}"],
-        ["3", "Ongoing Deals", f"{ongoing_deals}"],
-        ["4", "Total Volume", f"{total_volume:,.2f} INR"],
-        ["5", "Highest Deal", f"{highest_deal:,.2f} INR"],
-    ]
-
-    table = Table(table_data, colWidths=[30, 200, 200])
-    table.setStyle(TableStyle([
-        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
-        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-        ('FONTSIZE', (0, 0), (-1, 0), 12),
-        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-         [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
-    ]))
-
-    elements.append(table)
-    elements.append(Spacer(1, 20))
-    elements.append(Paragraph(
-        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
-        "This summary shows your total trading performance.",
-        footer_style
-    ))
-
-    pdf.build(elements)
-    buffer.seek(0)
-
-    await update.effective_chat.send_document(
-        document=InputFile(buffer, filename=f"{target_display.strip('@')}_stats.pdf"),
-        caption=f"📊 Stats Summary for {target_display}"
-    )
 # === Top 20 Users (Text Output with 🥇🥈🥉 badges) ===
 async def topuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
@@ -1366,6 +1258,127 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ✅ MAIN APP SETUP
 # ======================================================
 
+import io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import (
+    SimpleDocTemplate, Table, TableStyle,
+    Paragraph, Spacer
+)
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from telegram import InputFile
+from datetime import datetime, timezone, timedelta
+
+# ==== /stats Command (PDF version same as /history) ====
+async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    username = f"@{user.username}" if user.username else user.full_name
+    user_check = username.lower().strip()
+
+    total_deals = 0
+    total_volume = 0.0
+    completed_deals = 0
+    ongoing_deals = 0
+    highest_deal = 0.0
+    completed_volume = 0.0
+
+    # === Collect data ===
+    for g in groups_col.find({}):
+        for deal in g.get("deals", {}).values():
+            if not deal:
+                continue
+            buyer = str(deal.get("buyer", "")).lower().strip()
+            seller = str(deal.get("seller", "")).lower().strip()
+            amount = float(deal.get("added_amount", 0))
+            completed = bool(deal.get("completed", False))
+
+            if user_check in [buyer, seller]:
+                total_deals += 1
+                total_volume += amount
+                highest_deal = max(highest_deal, amount)
+                if completed:
+                    completed_deals += 1
+                    completed_volume += amount
+                else:
+                    ongoing_deals += 1
+
+    if total_deals == 0:
+        return await update.message.reply_text("📊 No deals found for you!")
+
+    avg_deal = total_volume / total_deals if total_deals else 0
+    IST = timezone(timedelta(hours=5, minutes=30))
+    date_str = datetime.now(IST).strftime("%d %b %Y, %I:%M %p IST")
+
+    # === Prepare PDF ===
+    buffer = io.BytesIO()
+    pdf = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        title=f"{username}_stats",
+        rightMargin=40, leftMargin=40,
+        topMargin=60, bottomMargin=40
+    )
+
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        name="TitleStyle", parent=styles['Title'],
+        fontSize=22, leading=26, alignment=1, textColor=colors.HexColor("#1F4E79")
+    )
+    subtitle_style = ParagraphStyle(
+        name="Subtitle", parent=styles['Normal'],
+        fontSize=11, leading=14, textColor=colors.grey, alignment=1
+    )
+    footer_style = ParagraphStyle(
+        name="Footer", parent=styles['Normal'],
+        fontSize=9, textColor=colors.grey, alignment=1
+    )
+
+    elements = []
+    elements.append(Paragraph("<b>LUCKY ESCROW — STATS SUMMARY</b>", title_style))
+    elements.append(Paragraph(f"📋 Generated for {username}", subtitle_style))
+    elements.append(Spacer(1, 12))
+    elements.append(Paragraph(f"🕓 {date_str}", subtitle_style))
+    elements.append(Spacer(1, 20))
+
+    # === Table Data ===
+    table_data = [
+        ["#", "Metric", "Value"],
+        ["1", "Total Deals", f"{total_deals}"],
+        ["2", "Completed Deals", f"{completed_deals}"],
+        ["3", "Ongoing Deals", f"{ongoing_deals}"],
+        ["4", "Total Volume", f"{total_volume:,.2f} INR"],
+        ["5", "Highest Deal", f"{highest_deal:,.2f} INR"],
+    ]
+
+    table = Table(table_data, colWidths=[30, 200, 200])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#DDEBF7")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#1F4E79")),
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#A6A6A6")),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
+         [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
+    ]))
+
+    elements.append(table)
+    elements.append(Spacer(1, 20))
+
+    elements.append(Paragraph(
+        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
+        "This summary shows your total trading performance.",
+        footer_style
+    ))
+
+    pdf.build(elements)
+    buffer.seek(0)
+
+    await update.effective_chat.send_document(
+        document=InputFile(buffer, filename=f"{username.strip('@')}_stats.pdf"),
+        caption=f"📊 Stats Summary for {username}"
+    )
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -1374,6 +1387,7 @@ def main():
     app.add_handler(CommandHandler("complete", complete_deal))
     app.add_handler(CommandHandler("update", update_deal))
     app.add_handler(CommandHandler("status", deal_status))
+    app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("stats", stats))
     app.add_handler(CommandHandler("gstats", global_stats))
     app.add_handler(CommandHandler("topuser", topuser))
