@@ -1197,55 +1197,6 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await msg.reply_text(msg_text)
-
-# ==== Clone System ====
-from datetime import datetime
-
-clones_col = db["clones"]
-
-async def clone_bot(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    username = f"@{user.username}" if user.username else user.full_name
-    user_id = user.id
-
-    if not context.args:
-        return await update.message.reply_text("❌ Usage: /clone <bottoken>")
-
-    token = context.args[0].strip()
-
-    # Basic validation of token format
-    if not token or ":" not in token:
-        return await update.message.reply_text("⚠️ Invalid bot token format.")
-
-    # Check if already registered
-    existing = clones_col.find_one({"token": token})
-    if existing:
-        return await update.message.reply_text("⚠️ This bot token is already registered!")
-
-    # Check if user already owns a clone
-    owned = clones_col.find_one({"owner_id": user_id})
-    if owned:
-        return await update.message.reply_text("⚠️ You already own a cloned bot!")
-
-    data = {
-        "token": token,
-        "owner_id": user_id,
-        "owner_username": username,
-        "created_at": datetime.utcnow().isoformat()
-    }
-
-    clones_col.insert_one(data)
-
-    msg = (
-        f"✅ <b>Clone Registered Successfully!</b>\n"
-        f"────────────────────\n"
-        f"🤖 Bot Token: <code>{token}</code>\n"
-        f"👑 Owner: {username}\n"
-        f"🕒 {datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')}\n"
-        f"────────────────────\n"
-        "You can now launch your cloned bot manually using this token."
-    )
-    await update.message.reply_text(msg, parse_mode="HTML")
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1269,7 +1220,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(CommandHandler("clone", clone_bot))
+    
 
     # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
