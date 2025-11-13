@@ -1121,7 +1121,7 @@ from datetime import datetime, timezone, timedelta
 from telegram import Update, User
 from telegram.ext import ContextTypes
 
-# ==== /stats (multi-mode text version) ====
+# ==== /stats ====
 async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     args = context.args
