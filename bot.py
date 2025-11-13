@@ -1201,7 +1201,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
 
-# === START COMMAND WITH 3 MENU BUTTONS ===
+# ===================== /start COMMAND =====================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
 
@@ -1212,7 +1212,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"What would you like to do?"
     )
 
-    # Persistent keyboard buttons under chat box
+    # --- Persistent buttons below chat box ---
     keyboard = [
         [KeyboardButton("📊 My Stats"), KeyboardButton("📄 My Deals PDF")],
         [KeyboardButton("🕒 Ongoing Deals")]
@@ -1220,8 +1220,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     reply_markup = ReplyKeyboardMarkup(
         keyboard,
-        resize_keyboard=True,        # auto-fit buttons
-        one_time_keyboard=False,     # stay visible
+        resize_keyboard=True,
+        one_time_keyboard=False,
         selective=True
     )
 
@@ -1232,18 +1232,51 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# === HANDLE MENU BUTTON PRESSES ===
+# ===================== MENU BUTTON HANDLER =====================
 async def menu_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
 
     if user_text == "📊 My Stats":
-        await stats(update, context)       # existing /stats handler
+        await stats(update, context)          # existing /stats handler
     elif user_text == "📄 My Deals PDF":
-        await history(update, context)     # existing /history handler
+        await history(update, context)        # existing /history handler
     elif user_text == "🕒 Ongoing Deals":
-        await ongoing(update, context)     # existing /ongoing handler
+        await ongoing(update, context)        # defined below
     else:
         await update.message.reply_text("Please choose a valid option from the menu below 👇")
+
+
+# ===================== ONGOING DEALS HANDLER =====================
+async def ongoing(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    deals = list(deals_collection.find({
+        "$or": [
+            {"buyer_id": user_id, "status": "ongoing"},
+            {"seller_id": user_id, "status": "ongoing"}
+        ]
+    }))
+
+    if not deals:
+        await update.message.reply_text("🕒 You have no ongoing deals at the moment.")
+        return
+
+    total_amount = sum(float(d.get('amount', 0)) for d in deals)
+    msg = (
+        f"🕒 <b>Your Ongoing Deals</b>\n"
+        f"📦 Total: <b>{len(deals)} deals</b> worth ₹{total_amount}\n\n"
+    )
+
+    for d in deals:
+        msg += (
+            f"💰 <b>Amount:</b> ₹{d.get('amount', 'N/A')}\n"
+            f"🤝 <b>Buyer:</b> @{d.get('buyer_username', '-')}\n"
+            f"🏷️ <b>Seller:</b> @{d.get('seller_username', '-')}\n"
+            f"🧾 <b>Trade ID:</b> {d.get('trade_id', '-')}\n"
+            f"📅 <b>Status:</b> {d.get('status', 'unknown')}\n\n"
+        )
+
+    await update.message.reply_text(msg, parse_mode="HTML")
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
