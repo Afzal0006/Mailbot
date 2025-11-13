@@ -1197,86 +1197,7 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await msg.reply_text(msg_text)
-
-from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
-from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
-
-# ===================== /start COMMAND =====================
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    username = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
-
-    welcome_text = (
-        f"🙏 <b>Welcome to Lucky Escrow Bot 💼</b>\n"
-        f"Securely Buy & Sell using Escrow ⚡\n\n"
-        f"Hello {username}!\n"
-        f"What would you like to do?"
-    )
-
-    # --- Persistent buttons below chat box ---
-    keyboard = [
-        [KeyboardButton("📊 My Stats"), KeyboardButton("📄 My Deals PDF")],
-        [KeyboardButton("🕒 Ongoing Deals")]
-    ]
-
-    reply_markup = ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True,
-        one_time_keyboard=False,
-        selective=True
-    )
-
-    await update.message.reply_text(
-        welcome_text,
-        parse_mode="HTML",
-        reply_markup=reply_markup
-    )
-
-
-# ===================== MENU BUTTON HANDLER =====================
-async def menu_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_text = update.message.text.strip()
-
-    if user_text == "📊 My Stats":
-        await stats(update, context)          # existing /stats handler
-    elif user_text == "📄 My Deals PDF":
-        await history(update, context)        # existing /history handler
-    elif user_text == "🕒 Ongoing Deals":
-        await ongoing(update, context)        # defined below
-    else:
-        await update.message.reply_text("Please choose a valid option from the menu below 👇")
-
-
-# ===================== ONGOING DEALS HANDLER =====================
-async def ongoing(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    deals = list(deals_collection.find({
-        "$or": [
-            {"buyer_id": user_id, "status": "ongoing"},
-            {"seller_id": user_id, "status": "ongoing"}
-        ]
-    }))
-
-    if not deals:
-        await update.message.reply_text("🕒 You have no ongoing deals at the moment.")
-        return
-
-    total_amount = sum(float(d.get('amount', 0)) for d in deals)
-    msg = (
-        f"🕒 <b>Your Ongoing Deals</b>\n"
-        f"📦 Total: <b>{len(deals)} deals</b> worth ₹{total_amount}\n\n"
-    )
-
-    for d in deals:
-        msg += (
-            f"💰 <b>Amount:</b> ₹{d.get('amount', 'N/A')}\n"
-            f"🤝 <b>Buyer:</b> @{d.get('buyer_username', '-')}\n"
-            f"🏷️ <b>Seller:</b> @{d.get('seller_username', '-')}\n"
-            f"🧾 <b>Trade ID:</b> {d.get('trade_id', '-')}\n"
-            f"📅 <b>Status:</b> {d.get('status', 'unknown')}\n\n"
-        )
-
-    await update.message.reply_text(msg, parse_mode="HTML")
+    
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -1299,11 +1220,8 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_reply))
-    app.add_handler(CommandHandler("ongoing", ongoing))
     
-
+    
     # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
         filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
