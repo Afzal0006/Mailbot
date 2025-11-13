@@ -1268,6 +1268,7 @@ def main():
     app.add_handler(CommandHandler("escrow", escrow))
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_reply))
+    app.add_handler(CommandHandler("ongoing", ongoing))
     
 
     # ✅ confirmation handler for release/relese/refund
