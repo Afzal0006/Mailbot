@@ -1197,6 +1197,41 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await msg.reply_text(msg_text)
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import CallbackQueryHandler, CommandHandler
+
+# ==== MENU BUTTON ====
+async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    username = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
+
+    msg = (
+        f"📜 <b>Lucky Escrow Quick Menu</b>\n"
+        f"Welcome {username}!\n\n"
+        "Choose an option below 👇"
+    )
+
+    keyboard = [
+        [InlineKeyboardButton("📊 My Stats", callback_data="menu_stats")],
+        [InlineKeyboardButton("📄 My Deals PDF", callback_data="menu_pdf")]
+    ]
+
+    await update.message.reply_text(
+        msg,
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
+
+
+# ==== MENU CALLBACK ====
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.data == "menu_stats":
+        await stats(update, context)   # directly show stats
+    elif query.data == "menu_pdf":
+        await history(update, context)  # send PDF
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1220,6 +1255,8 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(CommandHandler("menu", menu))
+    app.add_handler(CallbackQueryHandler(menu_callback))
     
 
     # ✅ confirmation handler for release/relese/refund
