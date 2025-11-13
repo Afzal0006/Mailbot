@@ -1198,41 +1198,48 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await msg.reply_text(msg_text)
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import CallbackQueryHandler, CommandHandler
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
 
-# ==== MENU BUTTON ====
-async def menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+# === START COMMAND WITH PERSISTENT MENU ===
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
 
-    msg = (
-        f"📜 <b>Lucky Escrow Quick Menu</b>\n"
-        f"Welcome {username}!\n\n"
-        "Choose an option below 👇"
+    welcome_text = (
+        f"🙏 <b>Welcome to Lucky Escrow Bot 💼</b>\n"
+        f"Where you can safely Buy & Sell with confidence ⚡\n\n"
+        f"Hello {username}!\n"
+        f"What would you like to do?"
     )
 
+    # Persistent keyboard buttons (visible under message box)
     keyboard = [
-        [InlineKeyboardButton("📊 My Stats", callback_data="menu_stats")],
-        [InlineKeyboardButton("📄 My Deals PDF", callback_data="menu_pdf")]
+        [KeyboardButton("📊 My Stats"), KeyboardButton("📄 My Deals PDF")]
     ]
+    reply_markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,        # fits nicely on mobile
+        one_time_keyboard=False,     # stays visible
+        selective=True
+    )
 
     await update.message.reply_text(
-        msg,
+        welcome_text,
         parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(keyboard)
+        reply_markup=reply_markup
     )
 
 
-# ==== MENU CALLBACK ====
-async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+# === HANDLE BUTTON CLICKS ===
+async def menu_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_text = update.message.text.strip()
 
-    if query.data == "menu_stats":
-        await stats(update, context)   # directly show stats
-    elif query.data == "menu_pdf":
-        await history(update, context)  # send PDF
-    
+    if user_text == "📊 My Stats":
+        await stats(update, context)      # existing stats handler
+    elif user_text == "📄 My Deals PDF":
+        await history(update, context)    # existing history handler
+    else:
+        await update.message.reply_text("Please choose a valid option from the menu below 👇")
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
 
@@ -1255,8 +1262,8 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(CommandHandler("menu", menu))
-    app.add_handler(CallbackQueryHandler(menu_callback))
+    app.add_handler(CommandHandler("start", start))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, menu_reply))
     
 
     # ✅ confirmation handler for release/relese/refund
