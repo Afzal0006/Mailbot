@@ -1201,25 +1201,27 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
 from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import CommandHandler, MessageHandler, filters, ContextTypes
 
-# === START COMMAND WITH PERSISTENT MENU ===
+# === START COMMAND WITH 3 MENU BUTTONS ===
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = f"@{update.effective_user.username}" if update.effective_user.username else update.effective_user.full_name
 
     welcome_text = (
         f"🙏 <b>Welcome to Lucky Escrow Bot 💼</b>\n"
-        f"Where you can safely Buy & Sell with confidence ⚡\n\n"
+        f"Securely Buy & Sell using Escrow ⚡\n\n"
         f"Hello {username}!\n"
         f"What would you like to do?"
     )
 
-    # Persistent keyboard buttons (visible under message box)
+    # Persistent keyboard buttons under chat box
     keyboard = [
-        [KeyboardButton("📊 My Stats"), KeyboardButton("📄 My Deals PDF")]
+        [KeyboardButton("📊 My Stats"), KeyboardButton("📄 My Deals PDF")],
+        [KeyboardButton("🕒 Ongoing Deals")]
     ]
+
     reply_markup = ReplyKeyboardMarkup(
         keyboard,
-        resize_keyboard=True,        # fits nicely on mobile
-        one_time_keyboard=False,     # stays visible
+        resize_keyboard=True,        # auto-fit buttons
+        one_time_keyboard=False,     # stay visible
         selective=True
     )
 
@@ -1230,14 +1232,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
-# === HANDLE BUTTON CLICKS ===
+# === HANDLE MENU BUTTON PRESSES ===
 async def menu_reply(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_text = update.message.text.strip()
 
     if user_text == "📊 My Stats":
-        await stats(update, context)      # existing stats handler
+        await stats(update, context)       # existing /stats handler
     elif user_text == "📄 My Deals PDF":
-        await history(update, context)    # existing history handler
+        await history(update, context)     # existing /history handler
+    elif user_text == "🕒 Ongoing Deals":
+        await ongoing(update, context)     # existing /ongoing handler
     else:
         await update.message.reply_text("Please choose a valid option from the menu below 👇")
 def main():
