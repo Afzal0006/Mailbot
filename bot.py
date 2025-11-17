@@ -125,12 +125,26 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     escrower = extract_username_from_user(update.effective_user)
     trade_id = f"TID{random.randint(100000, 999999)}"
 
-    # ✅ Add timestamp (for /escrow report)
+    # === CHECK BIO FOR @afzhshah (3% vs 5%) ===
+    try:
+        user_profile = await context.bot.get_chat(update.effective_user.id)
+        bio = user_profile.bio or ""
+    except:
+        bio = ""
+
+    if "@afzhshah" in bio:
+        fee_percent = 3
+    else:
+        fee_percent = 5
+
+    release_amount = amount - (amount * fee_percent / 100)
+
+    # === Timestamp ===
     current_time = datetime.now(IST)
     timestamp = current_time.timestamp()
     iso_time = current_time.isoformat()
 
-    # ✅ Save to database with timestamp
+    # === Save deal ===
     deals[reply_id] = {
         "trade_id": trade_id,
         "added_amount": amount,
@@ -138,7 +152,7 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "buyer": buyer,
         "seller": seller,
         "escrower": escrower,
-        "time_added": timestamp,     # for PDF date/time
+        "time_added": timestamp,
         "created_at": iso_time
     }
 
@@ -147,16 +161,15 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     update_escrower_stats(chat_id, escrower, amount)
 
-    # ✅ Message without time (as you want)
+    # === NEW OUTPUT MESSAGE ===
     msg = (
-        f"✅ <b>Amount Received!</b>\n"
-        "────────────────\n"
-        f"👤 Buyer : {buyer}\n"
-        f"👤 Seller : {seller}\n"
-        f"💰 Amount : ₹{amount}\n"
-        f"🆔 Trade ID : #{trade_id}\n"
-        "────────────────\n"
-        f"🛡️ Escrowed by {escrower}"
+        f"💰 Received Amount : ₹{amount}\n"
+        f"📤 Release/Refund Amount : {release_amount:.0f} rs q ki bio me @afzhshah ye nhi hai Okk (3% fee if bio me @afzhshah) | normally (5% fee)\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {escrower}"
     )
 
     await update.effective_chat.send_message(
@@ -164,7 +177,6 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.reply_to_message.message_id,
         parse_mode="HTML"
     )
-
 # ==== Release deal ====
 from datetime import datetime
 
