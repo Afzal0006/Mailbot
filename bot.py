@@ -119,32 +119,38 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
     seller = seller_match.group(1).strip() if seller_match else "Unknown"
 
+    # === Check BIO of Buyer/Seller ===
+    bio_has_afzh = False
+
+    # Buyer bio
+    try:
+        if buyer.startswith("@"):
+            info = await context.bot.get_chat(buyer)
+            if info.bio and "@afzhshah" in info.bio:
+                bio_has_afzh = True
+    except:
+        pass
+
+    # Seller bio
+    try:
+        if seller.startswith("@"):
+            info = await context.bot.get_chat(seller)
+            if info.bio and "@afzhshah" in info.bio:
+                bio_has_afzh = True
+    except:
+        pass
+
+    # === Fee logic ===
+    fee_percent = 3 if bio_has_afzh else 5
+    release_amount = amount - (amount * fee_percent / 100)
+
+    # === Mongo save ===
     g = groups_col.find_one({"_id": chat_id})
     deals = g.get("deals", {})
-
     escrower = extract_username_from_user(update.effective_user)
     trade_id = f"TID{random.randint(100000, 999999)}"
 
-    # === CHECK BIO FOR @afzhshah (3% vs 5%) ===
-    try:
-        user_profile = await context.bot.get_chat(update.effective_user.id)
-        bio = user_profile.bio or ""
-    except:
-        bio = ""
-
-    if "@afzhshah" in bio:
-        fee_percent = 3
-    else:
-        fee_percent = 5
-
-    release_amount = amount - (amount * fee_percent / 100)
-
-    # === Timestamp ===
-    current_time = datetime.now(IST)
-    timestamp = current_time.timestamp()
-    iso_time = current_time.isoformat()
-
-    # === Save deal ===
+    now = datetime.now(IST)
     deals[reply_id] = {
         "trade_id": trade_id,
         "added_amount": amount,
@@ -152,8 +158,8 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "buyer": buyer,
         "seller": seller,
         "escrower": escrower,
-        "time_added": timestamp,
-        "created_at": iso_time
+        "time_added": now.timestamp(),
+        "created_at": now.isoformat()
     }
 
     g["deals"] = deals
@@ -161,10 +167,10 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     update_escrower_stats(chat_id, escrower, amount)
 
-    # === NEW OUTPUT MESSAGE ===
+    # === FINAL CLEAN OUTPUT (ONLY YOUR FORMAT) ===
     msg = (
         f"💰 Received Amount : ₹{amount}\n"
-        f"📤 Release/Refund Amount : {release_amount:.0f} rs q ki bio me @afzhshah ye nhi hai Okk (3% fee if bio me @afzhshah) | normally (5% fee)\n"
+        f"📤 Release/Refund Amount : {release_amount:.0f} rs\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
         f"Continue the Deal\n"
         f"Buyer : {buyer}\n"
