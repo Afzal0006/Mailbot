@@ -91,100 +91,82 @@ from telegram.ext import ContextTypes
 IST = pytz.timezone("Asia/Kolkata")
 
 # ==== Add deal ====
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
 
-    # delete /add message
     try:
         await update.message.delete()
     except:
         pass
 
-    # must reply to deal info
     if not update.message.reply_to_message:
-        return await update.effective_chat.send_message("❌ Reply to DEAL INFO message!")
+        return await update.effective_chat.send_message(
+            "❌ Reply to the DEAL INFO message!"
+        )
 
-    # amount check
     if not context.args or not context.args[0].isdigit():
-        return await update.effective_chat.send_message("❌ Use: /add 50")
+        return await update.effective_chat.send_message(
+            "❌ Use: /add 100"
+        )
 
     amount = float(context.args[0])
-    deal_text = update.message.reply_to_message.text
 
-    # extract buyer/seller safely
-    def safe_extract(pattern, text):
-        match = re.search(pattern, text, re.IGNORECASE)
-        return match.group(1).strip() if match else None
+    # Save temporary data
+    context.user_data["add_amount"] = amount
+    context.user_data["reply_id"] = update.message.reply_to_message.message_id
+    context.user_data["original_text"] = update.message.reply_to_message.text
+    context.user_data["chat_id"] = update.effective_chat.id
 
-    buyer = safe_extract(r"BUYER\s*:\s*(@\w+)", deal_text) or None
-    seller = safe_extract(r"SELLER\s*:\s*(@\w+)", deal_text) or None
+    keyboard = [
+        [
+            InlineKeyboardButton("3% Fee", callback_data="fee_3"),
+            InlineKeyboardButton("5% Fee", callback_data="fee_5"),
+        ]
+    ]
 
-    # default if missing
-    if not buyer:
-        buyer = "@UnknownBuyer"
-    if not seller:
-        seller = "@UnknownSeller"
+    await update.effective_chat.send_message(
+        "Please choose % of fees",
+        reply_markup=InlineKeyboardMarkup(keyboard)
+    )
 
-    # BIO CHECK (safe)
-    bio_has_afzh = False
+async def fee_selection(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    async def check_bio(username):
-        nonlocal bio_has_afzh
-        try:
-            user = await context.bot.get_chat(username)
-            if user.bio and "@afzhshah" in user.bio:
-                bio_has_afzh = True
-        except:
-            pass
+    data = query.data
+    amount = context.user_data.get("add_amount")
+    reply_id = context.user_data.get("reply_id")
+    original_text = context.user_data.get("original_text")
+    chat_id = context.user_data.get("chat_id")
 
-    # check for buyer bio
-    if buyer.startswith("@"):
-        await check_bio(buyer)
+    if not amount:
+        return await query.edit_message_text("❌ Error: Missing deal data")
 
-    # check for seller bio
-    if seller.startswith("@"):
-        await check_bio(seller)
+    # Extract Buyer & Seller
+    buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+    seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
 
-    # FEE logic
-    if bio_has_afzh:
+    buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
+    seller = seller_match.group(1).strip() if seller_match else "Unknown"
+
+    escrower = extract_username_from_user(query.from_user)
+    trade_id = f"TID{random.randint(100000, 999999)}"
+
+    # Fee logic
+    if data == "fee_3":
         fee_percent = 3
-        reason = "buyer/seller ke bio me @afzhshah hai Okk"
     else:
         fee_percent = 5
-        reason = "buyer/seller ke bio me @afzhshah ye nhi hai Okk"
 
     release_amount = amount - (amount * fee_percent / 100)
 
-    # trade ID
-    trade_id = f"TID{random.randint(100000, 999999)}"
-    escrower = extract_username_from_user(update.effective_user)
-
-    # save deal
-    chat_id = str(update.effective_chat.id)
-    reply_id = str(update.message.reply_to_message.message_id)
-    init_group(chat_id)
-
-    g = groups_col.find_one({"_id": chat_id})
-    deals = g.get("deals", {})
-
-    deals[reply_id] = {
-        "trade_id": trade_id,
-        "added_amount": amount,
-        "buyer": buyer,
-        "seller": seller,
-        "escrower": escrower,
-        "completed": False
-    }
-
-    g["deals"] = deals
-    groups_col.update_one({"_id": chat_id}, {"$set": g})
-
-    # output message
+    # Final Message
     msg = (
         f"💰 Received Amount : ₹{amount}\n"
-        f"📤 Release/Refund Amount : {release_amount:.0f} rs q ki {reason} "
-        f"(3% fee if bio me @afzhshah) | normally (5% fee)\n"
+        f"📤 Release/Refund Amount : {release_amount:.0f}\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
         f"Continue the Deal\n"
         f"Buyer : {buyer}\n"
@@ -192,10 +174,14 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Escrowed By : {escrower}"
     )
 
-    await update.effective_chat.send_message(
-        msg,
-        reply_to_message_id=int(reply_id)
+    # Send message as reply to original
+    await context.bot.send_message(
+        chat_id=chat_id,
+        text=msg,
+        reply_to_message_id=reply_id
     )
+
+    await query.edit_message_text("✔ Fee applied successfully!")
 # ==== Release deal ====
 from datetime import datetime
 
@@ -1251,6 +1237,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(CallbackQueryHandler(fee_selection, pattern="fee_"))
     
     
     # ✅ confirmation handler for release/relese/refund
