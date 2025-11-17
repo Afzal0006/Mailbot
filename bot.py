@@ -1203,7 +1203,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_deal))
-    app.add_handler(CommandHandler("complete", complete_deal))
+    app.add_handler(CommandHandler("release", release_deal))
     app.add_handler(CommandHandler("update", update_deal))
     app.add_handler(CommandHandler("status", deal_status))
     app.add_handler(CommandHandler("stats", stats))
