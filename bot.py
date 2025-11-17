@@ -203,18 +203,22 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.effective_chat.id)
     reply_id = str(msg.reply_to_message.message_id)
 
+    # Fetch group
     g = groups_col.find_one({"_id": chat_id})
     if not g:
         return await msg.reply_text("❌ Group data missing!")
 
-    deal_info = g.get("deals", {}).get(reply_id)
+    deals = g.get("deals", {})
+
+    # FETCH DEAL EXACTLY BY reply_id
+    deal_info = deals.get(reply_id)
     if not deal_info:
-        return await msg.reply_text("❌ Deal not found!")
+        return await msg.reply_text("❌ Deal not found!")  # FIXED
 
     if deal_info.get("completed"):
         return await msg.reply_text("⚠️ Already completed!")
 
-    added_amount = deal_info["added_amount"]
+    added_amount = float(deal_info["added_amount"])
     fee = added_amount - released if added_amount > released else 0
 
     # Mark complete
@@ -222,8 +226,10 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     deal_info["fee"] = fee
     deal_info["completed_at"] = datetime.utcnow().isoformat()
 
-    g["deals"][reply_id] = deal_info
+    deals[reply_id] = deal_info
+    g["deals"] = deals
     g["total_fee"] += fee
+
     groups_col.update_one({"_id": chat_id}, {"$set": g})
 
     # Global stat update
@@ -249,7 +255,12 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🛡️ Escrowed by {escrower}"
     )
 
-    await msg.reply_text(text, parse_mode="HTML")
+    # Send reply to original deal message
+    await update.effective_chat.send_message(
+        text,
+        reply_to_message_id=int(reply_id),
+        parse_mode="HTML"
+    )
 
     # Now delete command message (at last)
     try:
