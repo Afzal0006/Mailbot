@@ -95,83 +95,106 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
 
+    # delete /add message
     try:
         await update.message.delete()
     except:
         pass
 
-    # Must reply to deal info message
+    # must reply to deal info
     if not update.message.reply_to_message:
-        return await update.message.reply_text("❌ Reply to DEAL INFO message!")
+        return await update.effective_chat.send_message("❌ Reply to DEAL INFO message!")
 
-    # Amount check
+    # amount check
     if not context.args or not context.args[0].isdigit():
-        return await update.message.reply_text("❌ Use: /add 100")
+        return await update.effective_chat.send_message("❌ Use: /add 50")
 
     amount = float(context.args[0])
+    deal_text = update.message.reply_to_message.text
 
-    replied_msg = update.message.reply_to_message
+    # extract buyer/seller safely
+    def safe_extract(pattern, text):
+        match = re.search(pattern, text, re.IGNORECASE)
+        return match.group(1).strip() if match else None
 
-    # === Extract Buyer & Seller IDs (REAL USER ID) ===
-    buyer_user = replied_msg.entities[1].user if len(replied_msg.entities) > 1 else None
-    seller_user = replied_msg.entities[2].user if len(replied_msg.entities) > 2 else None
+    buyer = safe_extract(r"BUYER\s*:\s*(@\w+)", deal_text) or None
+    seller = safe_extract(r"SELLER\s*:\s*(@\w+)", deal_text) or None
 
-    if not buyer_user or not seller_user:
-        return await update.message.reply_text("❌ Buyer/Seller ko tag karke message banaya karo!")
+    # default if missing
+    if not buyer:
+        buyer = "@UnknownBuyer"
+    if not seller:
+        seller = "@UnknownSeller"
 
-    buyer_id = buyer_user.id
-    seller_id = seller_user.id
-
-    buyer_username = f"@{buyer_user.username}" if buyer_user.username else buyer_user.full_name
-    seller_username = f"@{seller_user.username}" if seller_user.username else seller_user.full_name
-
-    # === Fetch Buyer BIO ===
+    # BIO CHECK (safe)
     bio_has_afzh = False
 
-    try:
-        buyer_info = await context.bot.get_chat(buyer_id)
-        if buyer_info.bio and "@afzhshah" in buyer_info.bio:
-            bio_has_afzh = True
-    except:
-        pass
+    async def check_bio(username):
+        nonlocal bio_has_afzh
+        try:
+            user = await context.bot.get_chat(username)
+            if user.bio and "@afzhshah" in user.bio:
+                bio_has_afzh = True
+        except:
+            pass
 
-    try:
-        seller_info = await context.bot.get_chat(seller_id)
-        if seller_info.bio and "@afzhshah" in seller_info.bio:
-            bio_has_afzh = True
-    except:
-        pass
+    # check for buyer bio
+    if buyer.startswith("@"):
+        await check_bio(buyer)
 
-    # === Fee Logic ===
+    # check for seller bio
+    if seller.startswith("@"):
+        await check_bio(seller)
+
+    # FEE logic
     if bio_has_afzh:
         fee_percent = 3
         reason = "buyer/seller ke bio me @afzhshah hai Okk"
     else:
         fee_percent = 5
-        reason = "buyer/seller ke bio me @afzhshah nahi hai Okk"
+        reason = "buyer/seller ke bio me @afzhshah ye nhi hai Okk"
 
     release_amount = amount - (amount * fee_percent / 100)
 
-    # === Trade ID ===
+    # trade ID
     trade_id = f"TID{random.randint(100000, 999999)}"
-
     escrower = extract_username_from_user(update.effective_user)
 
-    # === Output Message ===
+    # save deal
+    chat_id = str(update.effective_chat.id)
+    reply_id = str(update.message.reply_to_message.message_id)
+    init_group(chat_id)
+
+    g = groups_col.find_one({"_id": chat_id})
+    deals = g.get("deals", {})
+
+    deals[reply_id] = {
+        "trade_id": trade_id,
+        "added_amount": amount,
+        "buyer": buyer,
+        "seller": seller,
+        "escrower": escrower,
+        "completed": False
+    }
+
+    g["deals"] = deals
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    # output message
     msg = (
         f"💰 Received Amount : ₹{amount}\n"
-        f"📤 Release/Refund Amount : {release_amount:.0f} rs q ki {reason} (3% fee if bio me @afzhshah) | normally (5% fee)\n"
+        f"📤 Release/Refund Amount : {release_amount:.0f} rs q ki {reason} "
+        f"(3% fee if bio me @afzhshah) | normally (5% fee)\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
         f"Continue the Deal\n"
-        f"Buyer : {buyer_username}\n"
-        f"Seller : {seller_username}\n\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
         f"Escrowed By : {escrower}"
     )
 
     await update.effective_chat.send_message(
         msg,
-        reply_to_message_id=replied_msg.message_id,
-        parse_mode="HTML"
+        reply_to_message_id=int(reply_id)
     )
 # ==== Release deal ====
 from datetime import datetime
