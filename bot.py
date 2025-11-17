@@ -188,43 +188,45 @@ from datetime import datetime
 async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
-    try:
-        await update.message.delete()
-    except:
-        pass
-    if not update.message.reply_to_message:
-        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
 
+    msg = update.message
+
+    # Must be reply
+    if not msg.reply_to_message:
+        return await msg.reply_text("❌ Reply to the DEAL INFO message!")
+
+    # Must have amount
     if not context.args or not context.args[0].replace(".", "", 1).isdigit():
-        return await update.message.reply_text("❌ Please provide amount like /release 50")
+        return await msg.reply_text("❌ Please provide amount like /release 50")
 
     released = float(context.args[0])
     chat_id = str(update.effective_chat.id)
-    reply_id = str(update.message.reply_to_message.message_id)
+    reply_id = str(msg.reply_to_message.message_id)
+
     g = groups_col.find_one({"_id": chat_id})
-    deal_info = g["deals"].get(reply_id)
+    if not g:
+        return await msg.reply_text("❌ Group data missing!")
 
+    deal_info = g.get("deals", {}).get(reply_id)
     if not deal_info:
-        return await update.message.reply_text("❌ Deal not found!")
-    if deal_info["completed"]:
-        return await update.message.reply_text("⚠️ Already completed!")
+        return await msg.reply_text("❌ Deal not found!")
 
-    # ✅ Calculate fee
+    if deal_info.get("completed"):
+        return await msg.reply_text("⚠️ Already completed!")
+
     added_amount = deal_info["added_amount"]
     fee = added_amount - released if added_amount > released else 0
 
-    # ✅ Mark deal completed, store fee & timestamp
+    # Mark complete
     deal_info["completed"] = True
     deal_info["fee"] = fee
     deal_info["completed_at"] = datetime.utcnow().isoformat()
 
-    # ✅ Re-save updated deal info
     g["deals"][reply_id] = deal_info
-
-    # ✅ Update group & global stats
     g["total_fee"] += fee
     groups_col.update_one({"_id": chat_id}, {"$set": g})
 
+    # Global stat update
     global_data = global_col.find_one({"_id": "stats"})
     global_data["total_fee"] += fee
     global_col.update_one({"_id": "stats"}, {"$set": global_data})
@@ -232,10 +234,10 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buyer = deal_info.get("buyer", "Unknown")
     seller = deal_info.get("seller", "Unknown")
     escrower = extract_username_from_user(update.effective_user)
-    trade_id = deal_info["trade_id"]
+    trade_id = deal_info.get("trade_id")
 
-    # ✅ Send completion message
-    msg = (
+    # Output message
+    text = (
         f"✅ <b>Deal Completed!</b>\n"
         "────────────────\n"
         f"👤 Buyer  : {buyer}\n"
@@ -246,11 +248,14 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "────────────────\n"
         f"🛡️ Escrowed by {escrower}"
     )
-    await update.effective_chat.send_message(
-        msg,
-        reply_to_message_id=update.message.reply_to_message.message_id,
-        parse_mode="HTML"
-    )
+
+    await msg.reply_text(text, parse_mode="HTML")
+
+    # Now delete command message (at last)
+    try:
+        await msg.delete()
+    except:
+        pass
 
     # ✅ Log to channel
     try:
