@@ -165,10 +165,10 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-# ==== Complete deal (reply-based) ====
+# ==== Release deal ====
 from datetime import datetime
 
-async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
     try:
@@ -179,7 +179,7 @@ async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
 
     if not context.args or not context.args[0].replace(".", "", 1).isdigit():
-        return await update.message.reply_text("❌ Please provide amount like /complete 50")
+        return await update.message.reply_text("❌ Please provide amount like /release 50")
 
     released = float(context.args[0])
     chat_id = str(update.effective_chat.id)
