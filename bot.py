@@ -91,79 +91,127 @@ from telegram.ext import ContextTypes
 IST = pytz.timezone("Asia/Kolkata")
 
 # ==== Add deal ====
+from telegram import InlineKeyboardMarkup, InlineKeyboardButton
+# ============================================================
+#              NEW /add SYSTEM WITH FEE BUTTONS
+# ============================================================
+
 async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
 
+    msg = update.message
+
+    # delete /add message
     try:
-        await update.message.delete()
+        await msg.delete()
     except:
         pass
 
-    if not update.message.reply_to_message:
-        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
+    # must be reply
+    if not msg.reply_to_message:
+        return await msg.reply_text("❌ Reply to the DEAL INFO message!")
 
-    if not context.args or not context.args[0].replace(".", "", 1).isdigit():
-        return await update.message.reply_text("❌ Please provide amount like /add 50")
+    # must have amount
+    if not context.args or not context.args[0].isdigit():
+        return await msg.reply_text("❌ Use: /add 100")
 
     amount = float(context.args[0])
-    original_text = update.message.reply_to_message.text
-    chat_id = str(update.effective_chat.id)
-    reply_id = str(update.message.reply_to_message.message_id)
+    reply_msg = msg.reply_to_message
+    original = reply_msg.text
+    chat_id = str(msg.chat_id)
+    reply_id = str(reply_msg.message_id)
+
     init_group(chat_id)
 
-    # === Extract Buyer & Seller ===
-    buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
-    seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+    # extract buyer and seller
+    buyer = re.search(r"BUYER\s*:\s*(@\w+)", original, re.I)
+    seller = re.search(r"SELLER\s*:\s*(@\w+)", original, re.I)
 
-    buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
-    seller = seller_match.group(1).strip() if seller_match else "Unknown"
+    buyer = buyer.group(1) if buyer else "@Unknown"
+    seller = seller.group(1) if seller else "@Unknown"
 
+    escrower = extract_username_from_user(update.effective_user)
+    trade_id = f"TID{random.randint(100000,999999)}"
+
+    # save temporarily WITHOUT fee
     g = groups_col.find_one({"_id": chat_id})
     deals = g.get("deals", {})
 
-    escrower = extract_username_from_user(update.effective_user)
-    trade_id = f"TID{random.randint(100000, 999999)}"
-
-    # ✅ Add timestamp (for /escrow report)
-    current_time = datetime.now(IST)
-    timestamp = current_time.timestamp()
-    iso_time = current_time.isoformat()
-
-    # ✅ Save to database with timestamp
     deals[reply_id] = {
         "trade_id": trade_id,
         "added_amount": amount,
-        "completed": False,
         "buyer": buyer,
         "seller": seller,
         "escrower": escrower,
-        "time_added": timestamp,     # for PDF date/time
-        "created_at": iso_time
+        "completed": False,
+        "fee": None,
+        "final_amount": None
     }
 
     g["deals"] = deals
     groups_col.update_one({"_id": chat_id}, {"$set": g})
 
-    update_escrower_stats(chat_id, escrower, amount)
-
-    # ✅ Message without time (as you want)
-    msg = (
-        f"✅ <b>Amount Received!</b>\n"
-        "────────────────\n"
-        f"👤 Buyer : {buyer}\n"
-        f"👤 Seller : {seller}\n"
-        f"💰 Amount : ₹{amount}\n"
-        f"🆔 Trade ID : #{trade_id}\n"
-        "────────────────\n"
-        f"🛡️ Escrowed by {escrower}"
+    # ask for fee selection
+    kb = [
+        [
+            InlineKeyboardButton("3% Fee", callback_data=f"fee3|{reply_id}|{chat_id}"),
+            InlineKeyboardButton("5% Fee", callback_data=f"fee5|{reply_id}|{chat_id}")
+        ]
+    ]
+    await reply_msg.reply_text(
+        "Please choose fee:",
+        reply_markup=InlineKeyboardMarkup(kb)
     )
 
-    await update.effective_chat.send_message(
-        msg,
-        reply_to_message_id=update.message.reply_to_message.message_id,
-        parse_mode="HTML"
+# ============================================================
+#                FEE BUTTON HANDLER
+# ============================================================
+
+async def fee_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data.split("|")
+    fee_type = data[0]     # fee3 or fee5
+    reply_id = data[1]
+    chat_id = data[2]
+
+    g = groups_col.find_one({"_id": chat_id})
+    deals = g.get("deals", {})
+    deal = deals.get(reply_id)
+
+    if not deal:
+        return await query.edit_message_text("❌ Deal data missing!")
+
+    amount = deal["added_amount"]
+
+    if fee_type == "fee3":
+        fee_percent = 3
+    else:
+        fee_percent = 5
+
+    release_amount = amount - (amount * fee_percent / 100)
+
+    deal["fee"] = fee_percent
+    deal["final_amount"] = release_amount
+    deals[reply_id] = deal
+    g["deals"] = deals
+
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    # Final deal output
+    text = (
+        f"💰 Received Amount : ₹{amount}\n"
+        f"📤 Release/Refund Amount : {release_amount:.0f}\n"
+        f"🆔 Trade ID: #{deal['trade_id']}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {deal['buyer']}\n"
+        f"Seller : {deal['seller']}\n\n"
+        f"Escrowed By : {deal['escrower']}"
     )
+
+    await query.edit_message_text(text)
 
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
@@ -460,19 +508,19 @@ async def admin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "📋 <b>Admin List</b>\n\n" + "\n".join(owners) + "\n" + admins_text
     await update.message.reply_text(msg, parse_mode="HTML")
 
-# ==== ongoing deals (Fixed, top 100) ====
+# ==== ongoing deals (Fixed with Count) ====
 async def ongoing_deals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = f"@{user.username}" if user.username else user.full_name
-    user_check = username.lower().strip()
     isAdmin = await is_admin(update)
 
-    # 🚫 Restrict access
+    # 🚫 Only admins allowed
     if not isAdmin:
         return await update.message.reply_text("❌ Only admins can view pending deals!")
 
     ongoing_list = []
 
+    # 🔍 Collect all ongoing deals across all groups
     for g in groups_col.find({}):
         deals = g.get("deals") or {}
         for rid, deal in deals.items():
@@ -482,10 +530,17 @@ async def ongoing_deals(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 continue
             ongoing_list.append(deal)
 
+    # No deals
     if not ongoing_list:
         return await update.message.reply_text("📊 There are currently no ongoing deals.")
 
-    text = "🔄 <b>ongoing Deals (Top 100)</b>\n\n"
+    # 🔢 Count
+    total_ongoing = len(ongoing_list)
+
+    # 📝 Build output
+    text = f"🔄 <b>Ongoing Deals ({total_ongoing})</b>\n"
+    text += "Showing Top 100:\n\n"
+
     for i, deal in enumerate(ongoing_list[:100], start=1):
         text += (
             f"{i}. 🆔 #{deal.get('trade_id', 'N/A')} — ₹{deal.get('added_amount', 0)}\n"
@@ -493,38 +548,6 @@ async def ongoing_deals(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👤 Seller: {deal.get('seller', 'Unknown')}\n"
             "────────────────\n"
         )
-
-    await update.message.reply_text(text, parse_mode="HTML")
-
-async def holding(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user
-    isAdmin = await is_admin(update)
-
-    # ✅ Sirf admin hi use kar sake
-    if not isAdmin:
-        return await update.message.reply_text("❌ Only admins can use this command!")
-
-    holdings = {}
-
-    # 🔍 Har group ke deals check karte hain
-    for g in groups_col.find({}):
-        for deal in g.get("deals", {}).values():
-            if deal and not deal.get("completed"):
-                escrower = deal.get("escrower", "Unknown")
-                amount = float(deal.get("added_amount", 0))
-                holdings[escrower] = holdings.get(escrower, 0) + amount
-
-    if not holdings:
-        return await update.message.reply_text("🌱 No holding amounts right now!")
-
-    # 📊 Format output
-    text = "💼 <b>Current Holdings (Pending Amounts)</b>\n\n"
-    total = 0
-    for i, (escrower, amount) in enumerate(sorted(holdings.items(), key=lambda x: x[1], reverse=True), start=1):
-        text += f"{i}. {escrower} → ₹{amount:.2f}\n"
-        total += amount
-
-    text += f"\n────────────────\n🏦 <b>Total Hold:</b> ₹{total:.2f}"
 
     await update.message.reply_text(text, parse_mode="HTML")
 
@@ -1220,6 +1243,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(CallbackQueryHandler(fee_callback, pattern="^fee"))
     
     
     # ✅ confirmation handler for release/relese/refund
