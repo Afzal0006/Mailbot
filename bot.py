@@ -264,7 +264,7 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     escrower = extract_username_from_user(update.effective_user)
     trade_id = deal_info["trade_id"]
 
-    # ✅ Send simplified completion message
+
     msg = (
         f"📤 Release/Refund Amount : ₹{released}\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
@@ -424,7 +424,7 @@ async def global_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     await update.message.reply_text(msg)
 
-# === Top 20 Users (Text Output with 🥇🥈🥉 badges) ===
+# === Top 20 Users===
 async def topuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return await update.message.reply_text("❌ Only admins can use this command!")
@@ -505,7 +505,7 @@ async def admin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = "📋 <b>Admin List</b>\n\n" + "\n".join(owners) + "\n" + admins_text
     await update.message.reply_text(msg, parse_mode="HTML")
 
-# ==== ongoing deals (Fixed, top 100) ====
+# ==== ongoing deals ====
 async def ongoing_deals(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     username = f"@{user.username}" if user.username else user.full_name
@@ -573,12 +573,12 @@ async def holding(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text(text, parse_mode="HTML")
 
-# ==== My Deals (Simple View) ====
+# ==== My Deals ====
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import CallbackQueryHandler, CommandHandler
 
-DEALS_PER_PAGE = 100  # number of completed deals per page
-MAX_DEALS = 100      # show only latest 100 deals
+DEALS_PER_PAGE = 100  
+MAX_DEALS = 100      
 
 async def mydeals(update, context, page=0):
     user = update.effective_user
@@ -604,7 +604,7 @@ async def mydeals(update, context, page=0):
     pending_deals = []
     completed_deals = []
     total_hold = 0
-    completed_counter = 0  # for numbering 101, 102...
+    completed_counter = 0  
 
     for deal in latest_deals:
         trade_id = deal.get("trade_id", "Unknown")
@@ -619,7 +619,7 @@ async def mydeals(update, context, page=0):
     # Build text
     text_lines = []
 
-    # Active deals (only first page)
+    # Active deals
     if page == 0:
         if pending_deals:
             text_lines.append(f"🕒 Active Deals: ({len(pending_deals)})")
@@ -673,7 +673,7 @@ async def today(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not dt:
                 continue
 
-            # Convert to datetime if it's a string
+            # Convert to datetime 
             if isinstance(dt, str):
                 try:
                     dt = datetime.fromisoformat(dt)
