@@ -91,48 +91,63 @@ from telegram.ext import ContextTypes
 IST = pytz.timezone("Asia/Kolkata")
 
 # ==== Add deal ====
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        return
 
-# Buttons for fee selection
-keyboard = [
-    [
-        InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}_{amount}_{buyer}_{seller}_{escrower}"),
-        InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}_{amount}_{buyer}_{seller}_{escrower}")
-    ]
-]
-reply_markup = InlineKeyboardMarkup(keyboard)
+    try:
+        await update.message.delete()
+    except:
+        pass
 
-await update.effective_chat.send_message(
-    "Select fee to continue:",
-    reply_markup=reply_markup,
-    reply_to_message_id=update.message.reply_to_message.message_id
-)
-from telegram.ext import CallbackQueryHandler
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
 
-async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
+    if not context.args or not context.args[0].replace(".", "", 1).isdigit():
+        return await update.message.reply_text("❌ Please provide amount like /add 50")
 
-    data = query.data.split("_")
-    fee_type = data[0]      # fee3 or fee5
-    trade_id = data[1]      # TID123456
-    amount = float(data[2])
-    buyer = data[3]
-    seller = data[4]
-    escrower = data[5]
+    amount = float(context.args[0])
+    original_text = update.message.reply_to_message.text
+    chat_id = str(update.effective_chat.id)
+    reply_id = str(update.message.reply_to_message.message_id)
+    init_group(chat_id)
 
-    # Fee Calculation
-    if fee_type == "fee3":
-        fee = amount * 0.03
-    else:
-        fee = amount * 0.05
+    buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+    seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
 
-    released_amount = amount - fee
+    buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
+    seller = seller_match.group(1).strip() if seller_match else "Unknown"
 
-    # Final output message
-    text = (
-        f"💰 Received Amount : ₹{amount:.2f}\n"
-        f"📤 Release/Refund Amount : ₹{released_amount:.2f}\n"
+    g = groups_col.find_one({"_id": chat_id})
+    deals = g.get("deals", {})
+
+    escrower = extract_username_from_user(update.effective_user)
+    trade_id = f"TID{random.randint(100000, 999999)}"
+
+    current_time = datetime.now(IST)
+    timestamp = current_time.timestamp()
+    iso_time = current_time.isoformat()
+
+    deals[reply_id] = {
+        "trade_id": trade_id,
+        "added_amount": amount,
+        "completed": False,
+        "buyer": buyer,
+        "seller": seller,
+        "escrower": escrower,
+        "time_added": timestamp,
+        "created_at": iso_time
+    }
+
+    g["deals"] = deals
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    update_escrower_stats(chat_id, escrower, amount)
+
+    # === NEW FORMAT MESSAGE ===
+    new_msg = (
+        f"💰 Received Amount : ₹{amount}\n"
+        f"📤 Release/Refund Amount : —\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
         f"Continue the Deal\n"
         f"Buyer : {buyer}\n"
@@ -140,8 +155,20 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"Escrowed By : {escrower}"
     )
 
-    await query.edit_message_text(text, parse_mode="HTML")
+    keyboard = [
+        [
+            InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}_{amount}_{buyer}_{seller}_{escrower}"),
+            InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}_{amount}_{buyer}_{seller}_{escrower}")
+        ]
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
 
+    await update.effective_chat.send_message(
+        new_msg,
+        reply_markup=reply_markup,
+        reply_to_message_id=update.message.reply_to_message.message_id,
+        parse_mode="HTML"
+    )
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
 
