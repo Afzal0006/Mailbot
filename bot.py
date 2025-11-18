@@ -213,9 +213,9 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await query.edit_message_text(text, parse_mode="HTML")
     
-# ==== Complete deal (reply-based) ====
+# ==== release ====
 from datetime import datetime
-async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
 
@@ -1248,7 +1248,7 @@ def main():
 
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("add", add_deal))
-    app.add_handler(CommandHandler("complete", complete_deal))
+    app.add_handler(CommandHandler("release", release_deal))
     app.add_handler(CommandHandler("update", update_deal))
     app.add_handler(CommandHandler("status", deal_status))
     app.add_handler(CommandHandler("stats", stats))
