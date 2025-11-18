@@ -1242,6 +1242,53 @@ async def stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     await msg.reply_text(msg_text)
+
+# ==== /find command ====
+async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    args = context.args
+
+    # 🔹 Detect target user
+    if msg.reply_to_message:
+        target_user = msg.reply_to_message.from_user
+    elif args:
+        username_arg = args[0].strip()
+        if not username_arg.startswith("@"):
+            username_arg = f"@{username_arg}"
+        target_user = User(id=0, first_name=username_arg, is_bot=False, username=username_arg[1:])
+    else:
+        return await msg.reply_text("❌ Please reply to a user or provide a username.")
+
+    username = f"@{target_user.username}" if target_user.username else target_user.full_name
+    user_check = username.lower().strip()
+
+    # 🔹 Collect ongoing deals for this user
+    ongoing_list = []
+
+    for g in groups_col.find({}):
+        deals = g.get("deals") or {}
+        for deal in deals.values():
+            if not deal or deal.get("completed"):
+                continue
+            buyer = str(deal.get("buyer", "")).lower().strip()
+            seller = str(deal.get("seller", "")).lower().strip()
+            if user_check in [buyer, seller]:
+                ongoing_list.append(deal)
+
+    if not ongoing_list:
+        return await msg.reply_text(f"📊 No ongoing deals found for {username}.")
+
+    # 🔹 Format output
+    text = f"🔍 <b>Ongoing Deals for {username} (Top 50)</b>\n\n"
+    for i, deal in enumerate(ongoing_list[:50], start=1):
+        text += (
+            f"{i}. 🆔 #{deal.get('trade_id', 'N/A')} — ₹{deal.get('added_amount', 0)}\n"
+            f"👤 Buyer: {deal.get('buyer', 'Unknown')}\n"
+            f"👤 Seller: {deal.get('seller', 'Unknown')}\n"
+            "────────────────\n"
+        )
+
+    await msg.reply_text(text, parse_mode="HTML")
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1265,6 +1312,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(CommandHandler("find", find))
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     
     
