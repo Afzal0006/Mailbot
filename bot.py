@@ -91,79 +91,56 @@ from telegram.ext import ContextTypes
 IST = pytz.timezone("Asia/Kolkata")
 
 # ==== Add deal ====
-async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if not await is_admin(update):
-        return
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup
 
-    try:
-        await update.message.delete()
-    except:
-        pass
+# Buttons for fee selection
+keyboard = [
+    [
+        InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}_{amount}_{buyer}_{seller}_{escrower}"),
+        InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}_{amount}_{buyer}_{seller}_{escrower}")
+    ]
+]
+reply_markup = InlineKeyboardMarkup(keyboard)
 
-    if not update.message.reply_to_message:
-        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
+await update.effective_chat.send_message(
+    "Select fee to continue:",
+    reply_markup=reply_markup,
+    reply_to_message_id=update.message.reply_to_message.message_id
+)
+from telegram.ext import CallbackQueryHandler
 
-    if not context.args or not context.args[0].replace(".", "", 1).isdigit():
-        return await update.message.reply_text("❌ Please provide amount like /add 50")
+async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
 
-    amount = float(context.args[0])
-    original_text = update.message.reply_to_message.text
-    chat_id = str(update.effective_chat.id)
-    reply_id = str(update.message.reply_to_message.message_id)
-    init_group(chat_id)
+    data = query.data.split("_")
+    fee_type = data[0]      # fee3 or fee5
+    trade_id = data[1]      # TID123456
+    amount = float(data[2])
+    buyer = data[3]
+    seller = data[4]
+    escrower = data[5]
 
-    # === Extract Buyer & Seller ===
-    buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
-    seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+    # Fee Calculation
+    if fee_type == "fee3":
+        fee = amount * 0.03
+    else:
+        fee = amount * 0.05
 
-    buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
-    seller = seller_match.group(1).strip() if seller_match else "Unknown"
+    released_amount = amount - fee
 
-    g = groups_col.find_one({"_id": chat_id})
-    deals = g.get("deals", {})
-
-    escrower = extract_username_from_user(update.effective_user)
-    trade_id = f"TID{random.randint(100000, 999999)}"
-
-    # ✅ Add timestamp (for /escrow report)
-    current_time = datetime.now(IST)
-    timestamp = current_time.timestamp()
-    iso_time = current_time.isoformat()
-
-    # ✅ Save to database with timestamp
-    deals[reply_id] = {
-        "trade_id": trade_id,
-        "added_amount": amount,
-        "completed": False,
-        "buyer": buyer,
-        "seller": seller,
-        "escrower": escrower,
-        "time_added": timestamp,     # for PDF date/time
-        "created_at": iso_time
-    }
-
-    g["deals"] = deals
-    groups_col.update_one({"_id": chat_id}, {"$set": g})
-
-    update_escrower_stats(chat_id, escrower, amount)
-
-    # ✅ Message without time (as you want)
-    msg = (
-        f"✅ <b>Amount Received!</b>\n"
-        "────────────────\n"
-        f"👤 Buyer : {buyer}\n"
-        f"👤 Seller : {seller}\n"
-        f"💰 Amount : ₹{amount}\n"
-        f"🆔 Trade ID : #{trade_id}\n"
-        "────────────────\n"
-        f"🛡️ Escrowed by {escrower}"
+    # Final output message
+    text = (
+        f"💰 Received Amount : ₹{amount:.2f}\n"
+        f"📤 Release/Refund Amount : ₹{released_amount:.2f}\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {escrower}"
     )
 
-    await update.effective_chat.send_message(
-        msg,
-        reply_to_message_id=update.message.reply_to_message.message_id,
-        parse_mode="HTML"
-    )
+    await query.edit_message_text(text, parse_mode="HTML")
 
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
@@ -1220,6 +1197,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
+    app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     
     
     # ✅ confirmation handler for release/relese/refund
