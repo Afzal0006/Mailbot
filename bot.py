@@ -1279,7 +1279,7 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return await msg.reply_text(f"📊 No ongoing deals found for {username}.")
 
     # 🔹 Format output
-    text = f"🔍 <b>Ongoing Deals for {username} (Top 50)</b>\n\n"
+    text = f" <b>Ongoing Deals for {username}</b>\n\n"
     for i, deal in enumerate(ongoing_list[:50], start=1):
         text += (
             f"{i}. 🆔 #{deal.get('trade_id', 'N/A')} — ₹{deal.get('added_amount', 0)}\n"
