@@ -144,7 +144,6 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     update_escrower_stats(chat_id, escrower, amount)
 
-    # === NEW FORMAT MESSAGE ===
     new_msg = (
         f"💰 Received Amount : ₹{amount}\n"
         f"📤 Release/Refund Amount : —\n"
@@ -157,8 +156,8 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}_{amount}_{buyer}_{seller}_{escrower}"),
-            InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}_{amount}_{buyer}_{seller}_{escrower}")
+            InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}"),
+            InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(keyboard)
@@ -169,6 +168,51 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_to_message_id=update.message.reply_to_message.message_id,
         parse_mode="HTML"
     )
+
+async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    data = query.data.split("_")
+    fee_type = data[0]
+    trade_id = data[1]
+
+    deal = None
+    for g in groups_col.find({}):
+        for d in g.get("deals", {}).values():
+            if d.get("trade_id") == trade_id:
+                deal = d
+                break
+        if deal:
+            break
+
+    if not deal:
+        return await query.edit_message_text("❌ Deal not found!")
+
+    amount = float(deal["added_amount"])
+    buyer = deal["buyer"]
+    seller = deal["seller"]
+    escrower = deal["escrower"]
+
+    if fee_type == "fee3":
+        fee = amount * 0.03
+    else:
+        fee = amount * 0.05
+
+    release_amount = amount - fee
+
+    text = (
+        f"💰 Received Amount : ₹{amount:.2f}\n"
+        f"📤 Release/Refund Amount : ₹{release_amount:.2f}\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {escrower}"
+    )
+
+    await query.edit_message_text(text, parse_mode="HTML")
+    
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
 
@@ -1224,7 +1268,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    
+    app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     
     
     # ✅ confirmation handler for release/relese/refund
