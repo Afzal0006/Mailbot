@@ -215,14 +215,15 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
 # ==== Complete deal (reply-based) ====
 from datetime import datetime
-
 async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
+
     try:
         await update.message.delete()
     except:
         pass
+
     if not update.message.reply_to_message:
         return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
 
@@ -240,19 +241,17 @@ async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if deal_info["completed"]:
         return await update.message.reply_text("⚠️ Already completed!")
 
-    # ✅ Calculate fee
+    # Calculate fee
     added_amount = deal_info["added_amount"]
     fee = added_amount - released if added_amount > released else 0
 
-    # ✅ Mark deal completed, store fee & timestamp
+    # Mark deal completed
     deal_info["completed"] = True
     deal_info["fee"] = fee
     deal_info["completed_at"] = datetime.utcnow().isoformat()
-
-    # ✅ Re-save updated deal info
     g["deals"][reply_id] = deal_info
 
-    # ✅ Update group & global stats
+    # Update stats
     g["total_fee"] += fee
     groups_col.update_one({"_id": chat_id}, {"$set": g})
 
@@ -265,18 +264,16 @@ async def complete_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     escrower = extract_username_from_user(update.effective_user)
     trade_id = deal_info["trade_id"]
 
-    # ✅ Send completion message
+    # ✅ Send simplified completion message
     msg = (
-        f"✅ <b>Deal Completed!</b>\n"
-        "────────────────\n"
-        f"👤 Buyer  : {buyer}\n"
-        f"👤 Seller : {seller}\n"
-        f"💸 Released : ₹{released}\n"
-        f"🆔 Trade ID : #{trade_id}\n"
-        f"💰 Fee     : ₹{fee}\n"
-        "────────────────\n"
-        f"🛡️ Escrowed by {escrower}"
+        f"📤 Release/Refund Amount : ₹{released}\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        "Deal complete\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {escrower}"
     )
+
     await update.effective_chat.send_message(
         msg,
         reply_to_message_id=update.message.reply_to_message.message_id,
