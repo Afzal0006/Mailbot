@@ -1224,7 +1224,7 @@ def main():
     app.add_handler(CommandHandler("week", week))
     app.add_handler(CommandHandler("history", history))
     app.add_handler(CommandHandler("escrow", escrow))
-    app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
+    
     
     
     # ✅ confirmation handler for release/relese/refund
