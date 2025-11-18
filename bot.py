@@ -296,7 +296,7 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
     except:
         pass
-# ==== Update by Trade ID (0% Fee, tag original message) ====
+# ==== Update by Traid id ====
 async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return await update.message.reply_text("❌ Only admins can use this command!")
@@ -309,7 +309,7 @@ async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = None
     reply_id = None
 
-    # Search all groups for the trade_id
+    
     for g in groups_col.find({}):
         for rid, deal in (g.get("deals") or {}).items():
             if deal and str(deal.get("trade_id", "")).upper() == trade_id:
@@ -326,7 +326,7 @@ async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if found.get("completed"):
         return await update.message.reply_text("⚠️ Already completed!")
 
-    # Complete deal with 0% fee
+    
     found["completed"] = True
     g = groups_col.find_one({"_id": chat_id})
     g["deals"][reply_id] = found
@@ -349,7 +349,7 @@ async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🛡️ Escrowed by {escrower}"
     )
 
-    # Send message as reply if original message exists
+    
     try:
         if reply_id:
             await context.bot.send_message(
@@ -363,7 +363,7 @@ async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     except:
         await update.message.reply_text(msg, parse_mode="HTML")
 
-    # Optional log
+    
     try:
         log_msg = (
             "📜 <b>Deal Completed by Trade ID (0% Fee)</b>\n"
@@ -444,22 +444,22 @@ async def topuser(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not users_data:
         return await update.message.reply_text("📊 No Top user found.")
 
-    # Sort users by total volume
+    
     sorted_users = sorted(users_data.items(), key=lambda x: x[1], reverse=True)[:20]
 
-    # Header
+    
     msg = "🏆 <b>Top 20 Traders (by Volume)</b>\n"
     msg += "────────────────────────────\n"
 
-    # Badge map for top 3
+    
     badges = {1: "🥇", 2: "🥈", 3: "🥉"}
 
-    # User list with badges
+    
     for i, (user, volume) in enumerate(sorted_users, start=1):
         badge = badges.get(i, f"{i}.")
         msg += f"{badge} {user} — ₹{volume:.1f}\n"
 
-    # Footer (IST)
+    
     date_str = datetime.now().strftime("%d %b %Y, %I:%M %p") + " IST"
     msg += f"\n📅 Generated on {date_str}"
 
@@ -545,13 +545,13 @@ async def holding(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     isAdmin = await is_admin(update)
 
-    # ✅ Sirf admin hi use kar sake
+    
     if not isAdmin:
         return await update.message.reply_text("❌ Only admins can use this command!")
 
     holdings = {}
 
-    # 🔍 Har group ke deals check karte hain
+    
     for g in groups_col.find({}):
         for deal in g.get("deals", {}).values():
             if deal and not deal.get("completed"):
