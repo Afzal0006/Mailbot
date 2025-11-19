@@ -1289,6 +1289,82 @@ async def find(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
     await msg.reply_text(text, parse_mode="HTML")
+
+# ==== /refund =====
+async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        return
+
+    try:
+        await update.message.delete()
+    except:
+        pass
+
+    # Must reply to deal form
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
+
+    # Amount required
+    if not context.args or not context.args[0].replace(".", "", 1).isdigit():
+        return await update.message.reply_text("❌ Usage: /refund 50")
+
+    refund_amount = float(context.args[0])
+    chat_id = str(update.effective_chat.id)
+    reply_id = str(update.message.reply_to_message.message_id)
+
+    g = groups_col.find_one({"_id": chat_id})
+    deal_info = g["deals"].get(reply_id)
+
+    if not deal_info:
+        return await update.message.reply_text("❌ Deal not found!")
+    if deal_info.get("completed"):
+        return await update.message.reply_text("⚠️ Already completed!")
+
+    # Mark completed
+    deal_info["completed"] = True
+    deal_info["fee"] = 0
+    deal_info["completed_at"] = datetime.utcnow().isoformat()
+
+    g["deals"][reply_id] = deal_info
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    buyer = deal_info.get("buyer", "Unknown")
+    seller = deal_info.get("seller", "Unknown")
+    escrower = extract_username_from_user(update.effective_user)
+    trade_id = deal_info["trade_id"]
+
+    # Display refund message
+    msg = (
+        f"📤 Refund Amount : ₹{refund_amount}\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Deal refunded\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {escrower}"
+    )
+
+    await update.effective_chat.send_message(
+        msg,
+        reply_to_message_id=int(reply_id),
+        parse_mode="HTML"
+    )
+
+    # Log to channel
+    try:
+        log_msg = (
+            "📜 <b>Deal Refunded (Log)</b>\n"
+            "────────────────\n"
+            f"👤 Buyer   : {buyer}\n"
+            f"👤 Seller  : {seller}\n"
+            f"💸 Refunded: ₹{refund_amount}\n"
+            f"🆔 Trade ID: #{trade_id}\n"
+            f"💰 Fee     : ₹0\n"
+            f"🛡️ Escrowed by {escrower}\n"
+            f"📌 Group: {update.effective_chat.title} ({update.effective_chat.id})"
+        )
+        await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
+    except:
+        pass
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1314,7 +1390,7 @@ def main():
     app.add_handler(CommandHandler("escrow", escrow))
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
-    
+    app.add_handler(CommandHandler("refund", refund_deal))
     
     # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
