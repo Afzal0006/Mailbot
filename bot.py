@@ -156,7 +156,7 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = [
         [
-            InlineKeyboardButton("3% Fee", callback_data=f"fee3_{trade_id}"),
+            InlineKeyboardButton("1% Fee", callback_data=f"fee1_{trade_id}"),
             InlineKeyboardButton("5% Fee", callback_data=f"fee5_{trade_id}")
         ]
     ]
@@ -194,8 +194,8 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     seller = deal["seller"]
     escrower = deal["escrower"]
 
-    if fee_type == "fee3":
-        fee = amount * 0.03
+    if fee_type == "fee1":
+        fee = amount * 0.01
     else:
         fee = amount * 0.05
 
