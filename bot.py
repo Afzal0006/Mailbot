@@ -1365,6 +1365,73 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
     except:
         pass
+
+# Add these imports near top of file if not already present
+import matplotlib
+matplotlib.use('Agg')  # for headless environments
+import matplotlib.pyplot as plt
+from io import BytesIO
+from telegram import InputFile
+
+# Command: /graph [topN]
+# Example: /graph 10  -> top 10 escrowers by total volume
+async def graph_escrowers(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # optional: only allow admins
+    if not await is_admin(update):
+        return await update.message.reply_text("❌ Only admins can use this command!")
+
+    # parse top N if provided
+    args = context.args or []
+    try:
+        top_n = int(args[0]) if args else 10
+        if top_n <= 0:
+            top_n = 10
+    except:
+        top_n = 10
+
+    # Aggregate escrower volumes across all groups
+    escrow_totals = {}
+    for g in groups_col.find({}):
+        for deal in (g.get("deals") or {}).values():
+            if not deal:
+                continue
+            escrower = deal.get("escrower", "Unknown")
+            try:
+                amt = float(deal.get("added_amount", 0) or 0)
+            except:
+                amt = 0.0
+            escrow_totals[escrower] = escrow_totals.get(escrower, 0.0) + amt
+
+    if not escrow_totals:
+        return await update.message.reply_text("📊 No escrower data available to plot.")
+
+    # sort and pick top N
+    sorted_list = sorted(escrow_totals.items(), key=lambda x: x[1], reverse=True)[:top_n]
+    names = [t[0] for t in sorted_list]
+    amounts = [t[1] for t in sorted_list]
+
+    # Create bar chart (single plot, no explicit colors)
+    plt.figure(figsize=(10, 6))
+    plt.bar(range(len(names)), amounts)
+    plt.xticks(range(len(names)), names, rotation=45, ha='right')
+    plt.ylabel('Total Volume (₹)')
+    plt.title(f'Top {len(names)} Escrowers by Volume')
+    plt.tight_layout()
+
+    # Save to BytesIO
+    buf = BytesIO()
+    plt.savefig(buf, format='png')
+    buf.seek(0)
+    plt.close()
+
+    # Send image
+    caption = f"📊 Top {len(names)} Escrowers by Total Volume\nGenerated for: {update.effective_chat.title or update.effective_chat.id}"
+    try:
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=InputFile(buf, filename="escrowers.png"), caption=caption)
+    except Exception:
+        # fallback to document if send_photo fails
+        buf.seek(0)
+        await update.effective_chat.send_document(document=InputFile(buf, filename="escrowers.png"), caption=caption)
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1391,6 +1458,7 @@ def main():
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     app.add_handler(CommandHandler("refund", refund_deal))
+    app.add_handler(CommandHandler("graph", graph_escrowers))
     
     # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
