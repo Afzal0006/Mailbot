@@ -1434,58 +1434,72 @@ async def graph_escrowers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.effective_chat.send_document(document=InputFile(buf, filename="escrowers.png"), caption=caption)
 
 
-from telegram.ext import MessageHandler, filters
-import re
-import random
-
-AUTO_ESCROWER = "@GolgiBody"   # Fixed Escrower
-
 async def detect_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     text = msg.text or ""
 
-    # Check if it's incoming transaction message
-    if "INCOMING TRANSACTION DETECTED" not in text:
+    # Only detect TON transaction messages
+    if "INCOMING TRANSACTION DETECTED" not in text.upper():
         return
 
-    # Extract amount
+    # Extract incoming amount
     amt_match = re.search(r"Amount:\s*([0-9.]+)", text)
     if not amt_match:
         return
 
     incoming_amount = float(amt_match.group(1))
 
-    # Must be reply to deal form
-    if not msg.reply_to_message:
-        return
+    chat = update.effective_chat
+    chat_id = str(chat.id)
 
-    deal_form = msg.reply_to_message.text
+    # Read last 20 messages from chat
+    history = await context.bot.get_chat_history(chat_id=chat.id, limit=20)
 
-    # Extract amount from the deal form
-    form_amt_match = re.search(r"DEAL AMOUNT\s*:\s*([0-9.]+)", deal_form)
-    buyer_match = re.search(r"BUYER\s*:\s*(\S+)", deal_form)
-    seller_match = re.search(r"SELLER\s*:\s*(\S+)", deal_form)
+    last_form = None
 
-    if not form_amt_match or not buyer_match or not seller_match:
+    for m in history:
+        if not m.text:
+            continue
+        t = m.text
+
+        if (
+            "DEAL AMOUNT" in t.upper()
+            and "BUYER" in t.upper()
+            and "SELLER" in t.upper()
+        ):
+            last_form = m
+            break
+
+    if not last_form:
+        return  # no deal form found
+
+    form_text = last_form.text
+
+    # Extract data from form
+    form_amt_match = re.search(r"DEAL AMOUNT\s*:\s*([0-9.]+)", form_text, re.I)
+    buyer_match = re.search(r"BUYER\s*:\s*(\S+)", form_text, re.I)
+    seller_match = re.search(r"SELLER\s*:\s*(\S+)", form_text, re.I)
+
+    if not (form_amt_match and buyer_match and seller_match):
         return
 
     form_amount = float(form_amt_match.group(1))
     buyer = buyer_match.group(1)
     seller = seller_match.group(1)
 
-    # If amounts don't match → do nothing
+    # Amount mismatch → ignore
     if incoming_amount != form_amount:
         return
 
-    # All good → auto add deal
-    chat_id = str(update.effective_chat.id)
-    reply_id = str(msg.reply_to_message.message_id)
-
+    # AUTO ADD DEAL
+    reply_id = str(last_form.message_id)
     init_group(chat_id)
+
     g = groups_col.find_one({"_id": chat_id})
     deals = g.get("deals", {})
 
     trade_id = f"TID{random.randint(100000, 999999)}"
+    AUTO_ESCROWER = "@GolgiBody"
 
     deals[reply_id] = {
         "trade_id": trade_id,
@@ -1501,11 +1515,10 @@ async def detect_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
     g["deals"] = deals
     groups_col.update_one({"_id": chat_id}, {"$set": g})
 
-    # Update stats / holding
     update_escrower_stats(chat_id, AUTO_ESCROWER, incoming_amount)
 
-    # Send response message
-    result_msg = (
+    # SEND OUTPUT
+    msg_text = (
         f"💰 Received Amount : {incoming_amount} TON\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
         f"Continue the Deal\n"
@@ -1514,9 +1527,9 @@ async def detect_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Escrowed By : {AUTO_ESCROWER}"
     )
 
-    await update.effective_chat.send_message(
-        result_msg,
-        reply_to_message_id=msg.reply_to_message.message_id
+    await chat.send_message(
+        msg_text,
+        reply_to_message_id=last_form.message_id
     )
     
 def main():
