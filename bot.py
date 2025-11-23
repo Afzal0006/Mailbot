@@ -1432,6 +1432,92 @@ async def graph_escrowers(update: Update, context: ContextTypes.DEFAULT_TYPE):
         # fallback to document if send_photo fails
         buf.seek(0)
         await update.effective_chat.send_document(document=InputFile(buf, filename="escrowers.png"), caption=caption)
+
+
+from telegram.ext import MessageHandler, filters
+import re
+import random
+
+AUTO_ESCROWER = "@GolgiBody"   # Fixed Escrower
+
+async def detect_incoming(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    text = msg.text or ""
+
+    # Check if it's incoming transaction message
+    if "INCOMING TRANSACTION DETECTED" not in text:
+        return
+
+    # Extract amount
+    amt_match = re.search(r"Amount:\s*([0-9.]+)", text)
+    if not amt_match:
+        return
+
+    incoming_amount = float(amt_match.group(1))
+
+    # Must be reply to deal form
+    if not msg.reply_to_message:
+        return
+
+    deal_form = msg.reply_to_message.text
+
+    # Extract amount from the deal form
+    form_amt_match = re.search(r"DEAL AMOUNT\s*:\s*([0-9.]+)", deal_form)
+    buyer_match = re.search(r"BUYER\s*:\s*(\S+)", deal_form)
+    seller_match = re.search(r"SELLER\s*:\s*(\S+)", deal_form)
+
+    if not form_amt_match or not buyer_match or not seller_match:
+        return
+
+    form_amount = float(form_amt_match.group(1))
+    buyer = buyer_match.group(1)
+    seller = seller_match.group(1)
+
+    # If amounts don't match → do nothing
+    if incoming_amount != form_amount:
+        return
+
+    # All good → auto add deal
+    chat_id = str(update.effective_chat.id)
+    reply_id = str(msg.reply_to_message.message_id)
+
+    init_group(chat_id)
+    g = groups_col.find_one({"_id": chat_id})
+    deals = g.get("deals", {})
+
+    trade_id = f"TID{random.randint(100000, 999999)}"
+
+    deals[reply_id] = {
+        "trade_id": trade_id,
+        "added_amount": incoming_amount,
+        "completed": False,
+        "buyer": buyer,
+        "seller": seller,
+        "escrower": AUTO_ESCROWER,
+        "time_added": datetime.now().timestamp(),
+        "created_at": datetime.now().isoformat()
+    }
+
+    g["deals"] = deals
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    # Update stats / holding
+    update_escrower_stats(chat_id, AUTO_ESCROWER, incoming_amount)
+
+    # Send response message
+    result_msg = (
+        f"💰 Received Amount : {incoming_amount} TON\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"Escrowed By : {AUTO_ESCROWER}"
+    )
+
+    await update.effective_chat.send_message(
+        result_msg,
+        reply_to_message_id=msg.reply_to_message.message_id
+    )
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
@@ -1459,6 +1545,7 @@ def main():
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     app.add_handler(CommandHandler("refund", refund_deal))
     app.add_handler(CommandHandler("graph", graph_escrowers))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, detect_incoming))
     
     # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
