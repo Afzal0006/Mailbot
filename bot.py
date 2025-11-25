@@ -1404,17 +1404,14 @@ def main():
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     app.add_handler(CommandHandler("refund", refund_deal))
-    app.add_handler(CommandHandler("graph", graph_escrowers))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, detect_incoming))
     
-    # ✅ confirmation handler for release/relese/refund
     confirmation_handler = MessageHandler(
         filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
         handle_confirmation
     )
     app.add_handler(confirmation_handler)
 
-    print("Bot started... ✅")
+    print("Bot started... ✅ @golgibody")
     app.run_polling()
 
 
