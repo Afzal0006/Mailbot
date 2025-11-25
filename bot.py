@@ -64,42 +64,42 @@ def extract_username_from_user(user):
 
 # ==== COMMANDS ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (✨ Welcome to **Lucky World Escrow Bot**
-Your trusted, secure and automated escrow system for smooth P2P trading.
+    msg = (
+        "✨ Welcome to **Lucky World Escrow Bot**\n"
+        "Your trusted, secure and automated escrow system for smooth P2P trading.\n\n"
+        "────────────────────────────────\n"
+        "💼  DEAL MANAGEMENT\n"
+        "────────────────────────────────\n"
+        "• /add <amount> — Create a new deal\n"
+        "• /release <amount> — Release funds (Admin)\n"
+        "• /refund <amount> — Refund a deal (Admin)\n"
+        "• /update <trade_id> — Complete via Trade ID (0% fee)\n"
+        "• /status <trade_id> — Check deal status\n"
+        "• /ongoing — All active deals (Admin)\n"
+        "• /holding — Current holding amounts (Admin)\n\n"
+        "────────────────────────────────\n"
+        "📊  USER REPORTS & HISTORY\n"
+        "────────────────────────────────\n"
+        "• /stats — Your trading statistics\n"
+        "• /mydeals — Your active & completed deals\n"
+        "• /find <user> — Search user’s ongoing deals\n"
+        "• /today — Today’s trading summary\n"
+        "• /week — Weekly trading summary\n"
+        "• /history — Download your complete report (PDF)\n\n"
+        "────────────────────────────────\n"
+        "👑  ADMIN & OWNER CONTROLS\n"
+        "────────────────────────────────\n"
+        "• /gstats — Global escrow statistics\n"
+        "• /topuser — Top 20 traders\n"
+        "• /adminlist — List all admins\n"
+        "• /addadmin <user_id> — Add admin (Owner only)\n"
+        "• /removeadmin <user_id> — Remove admin (Owner only)\n\n"
+        "────────────────────────────────\n"
+        "🔒  SAFE • SECURE • AUTOMATED\n"
+        "Powered by **Lucky World Escrow** — bringing trust to every trade.\n"
+    )
 
-────────────────────────────────
-💼  DEAL MANAGEMENT
-────────────────────────────────
-• /add <amount> — Create a new deal  
-• /release <amount> — Release funds (Admin)  
-• /refund <amount> — Refund a deal (Admin)  
-• /update <trade_id> — Complete via Trade ID (0% fee)  
-• /status <trade_id> — Check deal status  
-• /ongoing — All active deals (Admin)  
-• /holding — Current holding amounts (Admin)
-
-────────────────────────────────
-📊  USER REPORTS & HISTORY
-────────────────────────────────
-• /stats — Your trading statistics  
-• /mydeals — Your active & completed deals  
-• /find <user> — Search user’s ongoing deals  
-• /today — Today’s trading summary  
-• /week — Weekly trading summary  
-• /history — Download your complete report (PDF)
-
-────────────────────────────────
-👑  ADMIN & OWNER CONTROLS
-────────────────────────────────
-• /gstats — Global escrow statistics  
-• /topuser — Top 20 traders  
-• /adminlist — List all admins  
-• /addadmin <user_id> — Add admin (Owner only)  
-• /removeadmin <user_id> — Remove admin (Owner only)
-
-────────────────────────────────
-🔒  SAFE • SECURE • AUTOMATED
-Powered by **Lucky World Escrow** — bringing trust to every trade.
+    await update.message.reply_text(msg, parse_mode="Markdown")
 
 import re
 import random
