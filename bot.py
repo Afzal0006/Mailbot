@@ -64,22 +64,42 @@ def extract_username_from_user(user):
 
 # ==== COMMANDS ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = (
-        "✨ <b>Welcome to @Escrow_LuckyWorld !</b> ✨\n\n"
-        "• /add <code>amount</code> – Add a new deal\n"
-        "• /complete <code>amount</code> – Complete a deal (reply-based)\n"
-        "• /update <code>trade_id</code> – Complete deal by Trade ID (0% fee)\n"
-        "• /status <code>trade_id</code> – Check deal status by Trade ID\n"
-        "• /stats – Your personal stats\n"
-        "• /gstats – Global stats (Admin only)\n"
-        "• /topuser – top 20 user list (Admin only)\n"
-        "• /ongoing – View ongoing deals\n"
-        "• /addadmin <code>user_id</code> – Owner only\n"
-        "• /removeadmin <code>user_id</code> – Owner only\n"
-        "• /adminlist – Show all admins"
-        "• there are many command not mentioned above\n"
-    )
-    await update.message.reply_text(msg, parse_mode="HTML")
+    msg = (✨ Welcome to **Lucky World Escrow Bot**
+Your trusted, secure and automated escrow system for smooth P2P trading.
+
+────────────────────────────────
+💼  DEAL MANAGEMENT
+────────────────────────────────
+• /add <amount> — Create a new deal  
+• /release <amount> — Release funds (Admin)  
+• /refund <amount> — Refund a deal (Admin)  
+• /update <trade_id> — Complete via Trade ID (0% fee)  
+• /status <trade_id> — Check deal status  
+• /ongoing — All active deals (Admin)  
+• /holding — Current holding amounts (Admin)
+
+────────────────────────────────
+📊  USER REPORTS & HISTORY
+────────────────────────────────
+• /stats — Your trading statistics  
+• /mydeals — Your active & completed deals  
+• /find <user> — Search user’s ongoing deals  
+• /today — Today’s trading summary  
+• /week — Weekly trading summary  
+• /history — Download your complete report (PDF)
+
+────────────────────────────────
+👑  ADMIN & OWNER CONTROLS
+────────────────────────────────
+• /gstats — Global escrow statistics  
+• /topuser — Top 20 traders  
+• /adminlist — List all admins  
+• /addadmin <user_id> — Add admin (Owner only)  
+• /removeadmin <user_id> — Remove admin (Owner only)
+
+────────────────────────────────
+🔒  SAFE • SECURE • AUTOMATED
+Powered by **Lucky World Escrow** — bringing trust to every trade.
 
 import re
 import random
