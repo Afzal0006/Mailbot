@@ -855,22 +855,16 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
-
-    import matplotlib.pyplot as plt
-    import numpy as np
     from reportlab.platypus import Image
 
-    # === Collect all deals ===
+    # === Collect Deals ===
     all_deals = []
-    total_by_day = {}
-    buyer_seller_count = {}
 
     for g in groups_col.find({}):
         for d in g.get("deals", {}).values():
 
             amount = float(d.get("added_amount", 0))
 
-            # ==== Time handling ====
             time_val = d.get("time_added") or d.get("created_at") or d.get("timestamp")
             dt = None
 
@@ -885,60 +879,23 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
             date_str = dt.strftime("%d %b %Y") if dt else "—"
             time_str = dt.strftime("%I:%M %p") if dt else "—"
 
-            # For PIE CHART (participation)
-            buyer = d.get("buyer", "Unknown")
-            seller = d.get("seller", "Unknown")
-            buyer_seller_count[buyer] = buyer_seller_count.get(buyer, 0) + 1
-            buyer_seller_count[seller] = buyer_seller_count.get(seller, 0) + 1
-
-            # For BAR CHART (daily volume)
-            if date_str != "—":
-                total_by_day[date_str] = total_by_day.get(date_str, 0) + amount
-
-            # Add row
             all_deals.append([
-                buyer,
-                seller,
+                d.get("buyer", "Unknown"),
+                d.get("seller", "Unknown"),
                 d.get("escrower", "Unknown"),
                 d.get("trade_id", "N/A"),
-                f"{amount} INR",
+                f"₹{amount}",
                 date_str,
                 time_str
             ])
 
     if not all_deals:
-        return await update.message.reply_text("❌ No escrow deals found!")
+        return await update.message.reply_text("❌ No deals found!")
 
-    # Sort by date desc
     all_deals.sort(key=lambda x: x[-2], reverse=True)
     numbered = [[str(i)] + row for i, row in enumerate(all_deals, start=1)]
 
-    # ===== Create PIE Chart =====
-    labels = list(buyer_seller_count.keys())[:6]
-    sizes = [buyer_seller_count[k] for k in labels]
-
-    fig1, ax = plt.subplots(figsize=(4, 4))
-    ax.pie(sizes, labels=labels, autopct='%1.1f%%')
-    ax.set_title("Participant Share")
-
-    pie_path = "/tmp/pie_chart.png"
-    plt.savefig(pie_path, bbox_inches="tight")
-    plt.close()
-
-    # ===== Create BAR Chart =====
-    days = list(total_by_day.keys())[-10:]      # last 10 days
-    values = [total_by_day[d] for d in days]
-
-    fig2, ax2 = plt.subplots(figsize=(5, 3))
-    ax2.bar(days, values)
-    plt.xticks(rotation=45, ha="right")
-    ax2.set_title("Daily Escrow Volume")
-
-    bar_path = "/tmp/bar_chart.png"
-    plt.savefig(bar_path, bbox_inches="tight")
-    plt.close()
-
-    # ===== Create PDF =====
+    # === PDF ===
     buffer = io.BytesIO()
     pdf = SimpleDocTemplate(
         buffer, pagesize=A4,
@@ -948,85 +905,79 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     styles = getSampleStyleSheet()
 
-    # GOLD THEME DESIGN
+    gold = "#FFD700"
+    dark = "#000000"
+    grey = "#C8C8C8"
+
     title_style = ParagraphStyle(
-        name="GoldTitle",
+        name="goldtitle",
         parent=styles["Title"],
-        fontSize=26,
-        textColor=colors.HexColor("#FFD700"),
+        fontSize=28,
+        textColor=colors.HexColor(gold),
         alignment=1,
-        leading=30,
+        leading=32,
     )
-    subtitle_style = ParagraphStyle(
-        name="Sub",
+    sub_style = ParagraphStyle(
+        name="subtitle",
         parent=styles["Normal"],
         fontSize=13,
-        textColor=colors.HexColor("#C8C8C8"),
-        alignment=1
-    )
-    watermark_style = ParagraphStyle(
-        name="Watermark",
-        parent=styles["Normal"],
-        fontSize=50,
-        textColor=colors.HexColor("#222222"),
-        alignment=1
+        alignment=1,
+        textColor=colors.HexColor(grey)
     )
     footer_style = ParagraphStyle(
-        name="Footer",
+        name="footer",
         parent=styles["Normal"],
-        textColor=colors.HexColor("#FFD700"),
         fontSize=10,
-        alignment=1
+        alignment=1,
+        textColor=colors.HexColor(gold)
+    )
+
+    watermark_style = ParagraphStyle(
+        name="watermark",
+        parent=styles["Normal"],
+        fontSize=45,
+        alignment=1,
+        textColor=colors.HexColor("#1A1A1A")
     )
 
     elements = []
 
     # === Watermark ===
-    elements.append(Paragraph("<br/><br/><br/>GOLD REPORT", watermark_style))
-    elements.append(Spacer(1, -180))
+    elements.append(Paragraph("<br/><br/>LUCKY ESCROW", watermark_style))
+    elements.append(Spacer(1, -200))
 
     # === Header ===
-    elements.append(Paragraph("<b>PREMIUM ESCROW REPORT</b>", title_style))
-    elements.append(Paragraph("All-Time Trading Summary", subtitle_style))
+    elements.append(Paragraph("<b>PREMIUM ESCROW SUMMARY</b>", title_style))
+    elements.append(Paragraph("All-Time Deal Report", sub_style))
     elements.append(Paragraph(
         datetime.now(IST).strftime("📅 %d %B %Y • %I:%M %p IST"),
-        subtitle_style
+        sub_style
     ))
     elements.append(Spacer(1, 20))
 
-    # === Charts ===
-    elements.append(Paragraph("<b>Visual Summary</b>", title_style))
-    elements.append(Spacer(1, 10))
-    elements.append(Image(pie_path, width=250, height=250))
-    elements.append(Spacer(1, 25))
-    elements.append(Image(bar_path, width=350, height=220))
-    elements.append(Spacer(1, 20))
-
     # === Table ===
-    table_data = [["#", "BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT", "DATE", "TIME"]] + numbered
-    table = Table(
-        table_data,
-        colWidths=[25, 80, 80, 80, 100, 70, 60, 60]
-    )
+    table_data = [
+        ["#", "BUYER", "SELLER", "ESCROWER", "TRADE ID", "AMOUNT", "DATE", "TIME"]
+    ] + numbered
+
+    table = Table(table_data, colWidths=[25, 80, 80, 80, 100, 60, 60, 60])
 
     table.setStyle(TableStyle([
         ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor("#1A1A1A")),
-        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor("#FFD700")),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.HexColor(gold)),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
 
-        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor("#000000")),
-        ('ROWBACKGROUNDS', (0, 1), (-1, -1),
-         [colors.HexColor("#000000"), colors.HexColor("#111111")]),
+        ('BACKGROUND', (0, 1), (-1, -1), colors.HexColor(dark)),
+        ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor(gold)),
 
-        ('TEXTCOLOR', (0, 1), (-1, -1), colors.HexColor("#FFD700")),
-        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor("#FFD700")),
+        ('GRID', (0, 0), (-1, -1), 0.5, colors.HexColor(gold)),
         ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
     ]))
 
     elements.append(table)
-    elements.append(Spacer(1, 20))
+    elements.append(Spacer(1, 25))
 
-    # === Total Volume ===
+    # === Footer + Total ===
     total_amount = sum(
         float(d.get("added_amount", 0))
         for g in groups_col.find({})
@@ -1039,7 +990,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ))
     elements.append(Spacer(1, 10))
     elements.append(Paragraph(
-        "Generated via <b>Lucky Escrow Bot</b><br/>© 2025 Premium Report",
+        "Generated via <b>Lucky Escrow Bot</b><br/>© Premium Gold Edition",
         footer_style
     ))
 
@@ -1047,9 +998,11 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buffer.seek(0)
 
     await update.effective_chat.send_document(
-        InputFile(buffer, filename="premium_gold_escrow.pdf"),
-        caption=f"✨ Premium Gold Report Generated (₹{total_amount:.2f})"
+        InputFile(buffer, filename="gold_report.pdf"),
+        caption=f"✨ Premium Gold Report • Total: ₹{total_amount:.2f}"
     )
+
+
 # ======================================================
 # ✅ CONFIRMATION HANDLER: release / relese / refund
 # ======================================================
