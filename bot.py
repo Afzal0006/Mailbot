@@ -96,7 +96,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "• /removeadmin <user_id> — Remove admin (Owner only)\n\n"
         "────────────────────────────────\n"
         "🔒  SAFE • SECURE • AUTOMATED\n"
-        "Powered by **Lucky World Escrow** — bringing trust to every trade.\n"
+        "Powered by **Trustify escrow** — bringing trust to every trade.\n"
     )
 
     await update.message.reply_text(msg, parse_mode="Markdown")
@@ -1015,7 +1015,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements.append(Paragraph(
         f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
-        "💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
+        "💼 Generated securely via <b>Trustful Escrow Bot</b><br/>"
         "This report summarizes all completed and ongoing trades.",
         footer_style
     ))
@@ -1025,7 +1025,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.effective_chat.send_document(
         document=InputFile(buffer, filename="all_escrow_summary.pdf"),
-        caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
+        caption=f"📜 Trustify escrow Summary (Total: ₹{total_amount:.2f})"
     )
 
 # ======================================================
