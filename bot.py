@@ -168,7 +168,7 @@ async def add_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💰 Received Amount : ₹{amount}\n"
         f"📤 Release/Refund Amount : —\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
-        f"Continue the Deal\n"
+        f"Continue the Deal ✅\n"
         f"Buyer : {buyer}\n"
         f"Seller : {seller}\n\n"
         f"Escrowed By : {escrower}"
@@ -238,7 +238,7 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
         f"💰 Received Amount : ₹{amount:.2f}\n"
         f"📤 Release/Refund Amount : ₹{release_amount:.2f}\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
-        f"Continue the Deal\n"
+        f"Continue the Deal✅\n"
         f"Buyer : {buyer}\n"
         f"Seller : {seller}\n\n"
         f"Escrowed By : {escrower}"
@@ -299,9 +299,9 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
     msg = (
-        f"📤 Release/Refund Amount : ₹{released}\n"
+        f"📤 Released Amount : ₹{released}\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
-        "Deal complete\n"
+        "Deal completed ✅\n"
         f"Buyer : {buyer}\n"
         f"Seller : {seller}\n\n"
         f"Escrowed By : {escrower}"
@@ -371,7 +371,7 @@ async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     escrower = extract_username_from_user(update.effective_user)
 
     msg = (
-        f"✅ <b>Deal Completed!</b> (0% Fee)\n"
+        f"✅ <b>Deal Completed!</b> \n"
         "────────────────\n"
         f"👤 Buyer  : {buyer}\n"
         f"👤 Seller : {seller}\n"
@@ -1368,9 +1368,9 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     # Display refund message
     msg = (
-        f"📤 Refund Amount : ₹{refund_amount}\n"
+        f"📤 Refunded Amount : ₹{refund_amount}\n"
         f"🆔 Trade ID: #{trade_id}\n\n"
-        f"Deal refunded\n"
+        f"Deal refunded ‼️\n"
         f"Buyer : {buyer}\n"
         f"Seller : {seller}\n\n"
         f"Escrowed By : {escrower}"
@@ -1391,7 +1391,6 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"👤 Seller  : {seller}\n"
             f"💸 Refunded: ₹{refund_amount}\n"
             f"🆔 Trade ID: #{trade_id}\n"
-            f"💰 Fee     : ₹0\n"
             f"🛡️ Escrowed by {escrower}\n"
             f"📌 Group: {update.effective_chat.title} ({update.effective_chat.id})"
         )
