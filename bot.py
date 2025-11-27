@@ -1398,6 +1398,73 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
     except:
         pass
+
+async def adm(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not await is_admin(update):
+        return
+
+    try:
+        await update.message.delete()
+    except:
+        pass
+
+    if not update.message.reply_to_message:
+        return await update.message.reply_text("❌ Reply to the DEAL INFO message!")
+
+    if not context.args or not context.args[0].replace(".", "", 1).isdigit():
+        return await update.message.reply_text("❌ Provide amount like /adm 50")
+
+    amount = float(context.args[0])
+    original_text = update.message.reply_to_message.text
+    chat_id = str(update.effective_chat.id)
+    reply_id = str(update.message.reply_to_message.message_id)
+    init_group(chat_id)
+
+    buyer_match = re.search(r"BUYER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+    seller_match = re.search(r"SELLER\s*:\s*(@\w+)", original_text, re.IGNORECASE)
+
+    buyer = buyer_match.group(1).strip() if buyer_match else "Unknown"
+    seller = seller_match.group(1).strip() if seller_match else "Unknown"
+
+    g = groups_col.find_one({"_id": chat_id})
+    deals = g.get("deals", {})
+
+    escrower = extract_username_from_user(update.effective_user)
+    trade_id = f"TID{random.randint(100000, 999999)}"
+
+    deals[reply_id] = {
+        "trade_id": trade_id,
+        "added_amount": amount,
+        "completed": False,
+        "buyer": buyer,
+        "seller": seller,
+        "escrower": escrower,
+        "fee": 0,                  # 🔥 0% fee
+        "time_added": datetime.now().timestamp(),
+        "created_at": datetime.now(IST).isoformat()
+    }
+
+    g["deals"] = deals
+    groups_col.update_one({"_id": chat_id}, {"$set": g})
+
+    # 0% fee update stats
+    update_escrower_stats(chat_id, escrower, amount)
+
+    new_msg = (
+        f"💰 Received Amount : ₹{amount}\n"
+        f"📤 Release/Refund Amount : ₹{amount}\n"
+        f"🆔 Trade ID: #{trade_id}\n\n"
+        f"Continue the Deal\n"
+        f"Buyer : {buyer}\n"
+        f"Seller : {seller}\n\n"
+        f"🛡️ Escrowed By : {escrower} (0% Fee)"
+    )
+
+    await update.effective_chat.send_message(
+        new_msg,
+        reply_to_message_id=int(reply_id),
+        parse_mode="HTML"
+        )
     
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
