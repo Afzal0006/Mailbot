@@ -843,7 +843,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
                                   fontSize=9, textColor=colors.grey, alignment=1)
 
     elements = [
-        Paragraph("<b>LUCKY ESCROW SUMMARY</b>", title_style),
+        Paragraph("<b>TRUSTIFY ESCROW SUMMARY</b>", title_style),
         Paragraph(f"Generated for {username}", subtitle_style),
         Spacer(1, 12),
         Paragraph(datetime.now(IST).strftime("📅 %B %d, %Y • %I:%M %p IST"), subtitle_style),
@@ -862,7 +862,7 @@ async def history(update: Update, context: ContextTypes.DEFAULT_TYPE):
          [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
     elements += [table, Spacer(1, 20),
-                 Paragraph("💼 Generated securely via <b>Lucky Escrow Bot</b><br/>"
+                 Paragraph("💼 Generated securely via <b>Trustify escrow</b><br/>"
                            "This report summarizes all completed and ongoing trades.",
                            footer_style)]
 
