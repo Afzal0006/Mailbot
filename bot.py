@@ -1398,7 +1398,7 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(LOG_CHANNEL_ID, log_msg, parse_mode="HTML")
     except:
         pass
-
+        # ===== /adm ======
 async def adm(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
@@ -1491,6 +1491,7 @@ def main():
     app.add_handler(CommandHandler("find", find))
     app.add_handler(CallbackQueryHandler(fee_button_handler, pattern="^fee"))
     app.add_handler(CommandHandler("refund", refund_deal))
+    app.add_handler(CommandHandler("adm", adm))
     
     confirmation_handler = MessageHandler(
         filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
