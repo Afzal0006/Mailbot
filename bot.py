@@ -886,8 +886,17 @@ from telegram.ext import ContextTypes
 
 IST = pytz.timezone("Asia/Kolkata")
 
+# ================================
+#   ESCROW REPORT — ADMIN ONLY
+# ================================
 async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+
+    # === ADMIN CHECK ===
+    chat_member = await update.effective_chat.get_member(user.id)
+    if chat_member.status not in ("administrator", "creator"):
+        return await update.message.reply_text("❌ Only group admins can use this command!")
+
     username = f"@{user.username}" if user.username else user.full_name
 
     # === Collect all deals (All Time) ===
@@ -909,9 +918,11 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
                         dt = datetime.fromisoformat(time_val).astimezone(IST)
                     else:
                         dt = None
+
                     if dt:
                         date_str = dt.strftime("%d %b %Y")
                         time_str = dt.strftime("%I:%M %p")
+
                 except Exception:
                     date_str = "—"
                     time_str = "—"
@@ -932,7 +943,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not all_deals:
         return await update.message.reply_text("❌ No escrow deals found!")
 
-    # === Sort by latest date/time ===
+    # === Sort by latest date ===
     all_deals.sort(key=lambda x: x[-2], reverse=True)
 
     # === Add numbering ===
@@ -1006,7 +1017,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     elements.append(table)
     elements.append(Spacer(1, 20))
 
-    # === Footer ===
+    # === Footer (Total Amount) ===
     total_amount = sum(
         float(d.get('added_amount', 0))
         for g in groups_col.find({})
@@ -1025,7 +1036,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.effective_chat.send_document(
         document=InputFile(buffer, filename="all_escrow_summary.pdf"),
-        caption=f"📜 Trustify escrow Summary (Total: ₹{total_amount:.2f})"
+        caption=f"📜 Trustify Escrow Summary (Total: ₹{total_amount:.2f})"
     )
 
 # ======================================================
