@@ -64,7 +64,7 @@ def extract_username_from_user(user):
 
 # ==== COMMANDS ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("🤖 Bot is Alive!")
+    await update.message.reply_text("alive")
     
 import re
 import random
