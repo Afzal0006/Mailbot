@@ -65,7 +65,7 @@ def extract_username_from_user(user):
 # ==== COMMANDS ====
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg = (
-        "✨ Welcome to **Lucky World Escrow Bot**\n"
+        "✨ Welcome to **Trustify escrow**\n"
         "Your trusted, secure and automated escrow system for smooth P2P trading.\n\n"
         "────────────────────────────────\n"
         "💼  DEAL MANAGEMENT\n"
