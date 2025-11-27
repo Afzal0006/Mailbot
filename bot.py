@@ -1456,7 +1456,7 @@ async def adm(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"Continue the Deal\n"
         f"Buyer : {buyer}\n"
         f"Seller : {seller}\n\n"
-        f"🛡️ Escrowed By : {escrower} (0% Fee)"
+        f"🛡️ Escrowed By : {escrower} "
     )
 
     await update.effective_chat.send_message(
