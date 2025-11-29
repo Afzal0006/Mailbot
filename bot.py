@@ -1108,20 +1108,6 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     except:
         await msg.reply_text(confirm_msg)
 
-def main():
-    app = Application.builder().token("YOUR_BOT_TOKEN").build()
-
-    confirmation_handler = MessageHandler(
-        filters.TEXT & (~filters.COMMAND),
-        handle_confirmation
-    )
-
-    app.add_handler(confirmation_handler)
-    app.run_polling()
-
-if __name__ == "__main__":
-    main()
-
 # ======================================================
 # ✅ MAIN APP SETUP
 # ======================================================
