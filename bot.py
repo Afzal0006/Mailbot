@@ -296,11 +296,11 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
         keyboard = InlineKeyboardMarkup([
     [
-        InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular"),
-        InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")
+        InlineKeyboardButton("📨 Vouch", url="https://t.me/+4TL7eYFRwzkwN2M1"),
+        InlineKeyboardButton("💬 Chat", url="https://t.me/+KYQXPzUS6S8zYTNl")
     ],
     [
-        InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")
+        InlineKeyboardButton("⚡ Trusify", url="https://t.me/trustifyescrow")
     ]
 ])
 
