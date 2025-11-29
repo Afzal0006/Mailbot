@@ -1000,7 +1000,9 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_id = str(chat.id)
     user = update.effective_user
     username_display = f"@{user.username}" if user.username else user.full_name
-    username_cmp = username_display.lower()
+
+    # Lower case without @ for comparison
+    username_cmp = (username_display.replace("@", "").lower()).strip()
 
     if not msg.reply_to_message:
         return await msg.reply_text("⚠️ Please reply to the deal message using confirmation.")
@@ -1015,8 +1017,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     if not deal:
         return await msg.reply_text("⚠️ Deal not found!")
 
-    buyer = str(deal.get("buyer", "")).lower()
-    seller = str(deal.get("seller", "")).lower()
+    buyer = str(deal.get("buyer", "")).lower().replace("@", "").strip()
+    seller = str(deal.get("seller", "")).lower().replace("@", "").strip()
     trade_id = deal.get("trade_id")
 
     if deal.get("status") in ["confirmed_release", "confirmed_refund"]:
@@ -1047,7 +1049,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
             except:
                 pass
-            return await chat.send_message(unauthorized_msg)
+            return await msg.reply_text(unauthorized_msg)
 
     elif action == "refund":
         if username_cmp == buyer:
@@ -1062,7 +1064,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                 )
             except:
                 pass
-            return await chat.send_message(unauthorized_msg)
+            return await msg.reply_text(unauthorized_msg)
 
     now_ist = datetime.now(IST)
     time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
