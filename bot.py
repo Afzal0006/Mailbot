@@ -295,10 +295,14 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular")],
-            [InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")],
-            [InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")]
-        ])
+    [
+        InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular"),
+        InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")
+    ],
+    [
+        InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")
+    ]
+])
 
         await context.bot.send_message(
             LOG_CHANNEL_ID,
