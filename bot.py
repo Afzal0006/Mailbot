@@ -955,6 +955,31 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
 
+    elements.append(table)
+    elements.append(Spacer(1, 20))
+
+    total_amount = sum(
+        float(d.get('added_amount', 0))
+        for g in groups_col.find({})
+        for d in g.get("deals", {}).values()
+    )
+
+    elements.append(Paragraph(
+        f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
+        "💼 Generated via Lucky Escrow Bot",
+        footer_style
+    ))
+
+    pdf.build(elements)
+    buffer.seek(0)
+
+    await update.effective_chat.send_document(
+        document=InputFile(buffer, filename="all_escrow_summary.pdf"),
+        caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
+    )
+# ======================================================
+# ✅ CONFIRMATION HANDLER: release / relese / refund
+# ======================================================
 import pytz
 from datetime import datetime, timedelta
 from telegram import Update, ChatPermissions
@@ -1060,33 +1085,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="HTML"
         )
     except:
-        await msg.reply_text(confirm_msg)    elements.append(table)
-    elements.append(Spacer(1, 20))
-
-    total_amount = sum(
-        float(d.get('added_amount', 0))
-        for g in groups_col.find({})
-        for d in g.get("deals", {}).values()
-    )
-
-    elements.append(Paragraph(
-        f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
-        "💼 Generated via Lucky Escrow Bot",
-        footer_style
-    ))
-
-    pdf.build(elements)
-    buffer.seek(0)
-
-    await update.effective_chat.send_document(
-        document=InputFile(buffer, filename="all_escrow_summary.pdf"),
-        caption=f"📜 All-Time Escrow Summary (Total: ₹{total_amount:.2f})"
-    )
-# ======================================================
-# ✅ CONFIRMATION HANDLER: release / relese / refund
-# ======================================================
-
-
+        await msg.reply_text(confirm_msg)
 
 # ======================================================
 # ✅ MAIN APP SETUP
