@@ -1382,12 +1382,11 @@ def main():
     app.add_handler(CommandHandler("refund", refund_deal))
     app.add_handler(CommandHandler("adm", adm))
     
-    application.add_handler(
-    MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
+    confirmation_handler = MessageHandler(
+        filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
         handle_confirmation
     )
-    )
+    app.add_handler(confirmation_handler)
 
     print("Bot started... ✅ @golgibody")
     app.run_polling()
