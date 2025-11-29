@@ -213,6 +213,9 @@ async def fee_button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE)
     
 # ==== release ====
 from datetime import datetime
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.ext import ContextTypes
+
 async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
         return
@@ -236,11 +239,11 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if not deal_info:
         return await update.message.reply_text("❌ Deal not found!")
-    if deal_info["completed"]:
+    if deal_info.get("completed"):
         return await update.message.reply_text("⚠️ Already completed!")
 
     # Calculate fee
-    added_amount = deal_info["added_amount"]
+    added_amount = deal_info.get("added_amount", 0)
     fee = added_amount - released if added_amount > released else 0
 
     # Mark deal completed
@@ -260,8 +263,7 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     buyer = deal_info.get("buyer", "Unknown")
     seller = deal_info.get("seller", "Unknown")
     escrower = extract_username_from_user(update.effective_user)
-    trade_id = deal_info["trade_id"]
-
+    trade_id = deal_info.get("trade_id", "N/A")
 
     msg = (
         f"📤 Released Amount : ₹{released}\n"
@@ -279,40 +281,34 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     # ==== log section ====
-try:
-    log_msg = (
-        "📜 <b>Deal Completed (Log)</b>\n"
-        "────────────────\n"
-        f"👤 Buyer   : {buyer}\n"
-        f"👤 Seller  : {seller}\n"
-        f"💸 Released: ₹{released}\n"
-        f"🆔 Trade ID: #{trade_id}\n"
-        f"💰 Fee     : ₹{fee}\n"
-        f"🛡️ Escrowed by {escrower}\n"
-        f"📌 Group: {update.effective_chat.title} ({update.effective_chat.id})"
-    )
+    try:
+        log_msg = (
+            "📜 <b>Deal Completed (Log)</b>\n"
+            "────────────────\n"
+            f"👤 Buyer   : {buyer}\n"
+            f"👤 Seller  : {seller}\n"
+            f"💸 Released: ₹{released}\n"
+            f"🆔 Trade ID: #{trade_id}\n"
+            f"💰 Fee     : ₹{fee}\n"
+            f"🛡️ Escrowed by {escrower}\n"
+            f"📌 Group: {update.effective_chat.title} ({update.effective_chat.id})"
+        )
 
-    keyboard = InlineKeyboardMarkup([
-        [
-            InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular")
-        ],
-        [
-            InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")
-        ],
-        [
-            InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")
-        ]
-    ])
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular")],
+            [InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")],
+            [InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")]
+        ])
 
-    await context.bot.send_message(
-        LOG_CHANNEL_ID,
-        log_msg,
-        reply_markup=keyboard,
-        parse_mode="HTML"
-    )
+        await context.bot.send_message(
+            LOG_CHANNEL_ID,
+            log_msg,
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
 
-except Exception as e:
-    print(f"Log Error: {e}")
+    except Exception as e:
+        print(f"Log Error: {e}")
     
 # ==== Update by Traid id ====
 async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
