@@ -981,13 +981,18 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 # ✅ CONFIRMATION HANDLER: release / relese / refund
 # ======================================================
 import pytz
-from datetime import datetime, timedelta
-from telegram import Update, ChatPermissions
-from telegram.ext import ContextTypes
+from datetime import datetime
+from telegram import Update
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, ContextTypes, filters
+)
 
 IST = pytz.timezone("Asia/Kolkata")
 
+# === Confirmation Handler ===
 async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle release/relese/refund confirmations with proper role logic."""
+
     msg = update.message
     if not msg or not msg.text:
         return
@@ -1000,30 +1005,36 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     chat_id = str(chat.id)
     user = update.effective_user
     username_display = f"@{user.username}" if user.username else user.full_name
+    username_cmp = username_display.lower()
 
-    # Lower case without @ for comparison
-    username_cmp = (username_display.replace("@", "").lower()).strip()
-
+    # Must reply to deal message
     if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please reply to the deal message using confirmation.")
+        return await msg.reply_text("⚠️ Please reply to the deal message using confirming Release / Refund.")
 
     reply_id = str(msg.reply_to_message.message_id)
+
+    # Lookup deal from Mongo
     group_data = groups_col.find_one({"_id": chat_id})
     if not group_data:
-        return await msg.reply_text("⚠️ No deal data found!")
+        return await msg.reply_text("⚠️ No deal data found for this group!")
 
     deals = group_data.get("deals") or {}
     deal = deals.get(reply_id)
     if not deal:
-        return await msg.reply_text("⚠️ Deal not found!")
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct deal form ")
 
-    buyer = str(deal.get("buyer", "")).lower().replace("@", "").strip()
-    seller = str(deal.get("seller", "")).lower().replace("@", "").strip()
+    # Extract buyer/seller usernames (normalized)
+    buyer = str(deal.get("buyer", "")).lower()
+    seller = str(deal.get("seller", "")).lower()
+
+    # Extract trade ID
     trade_id = deal.get("trade_id")
 
+    # Prevent double confirmation
     if deal.get("status") in ["confirmed_release", "confirmed_refund"]:
-        return await msg.reply_text("⚠️ Already confirmed.")
+        return await msg.reply_text("⚠️ Already confirmed this deal.")
 
+    # Detect action
     if "refund" in text:
         action = "refund"
         emoji = "🔴"
@@ -1033,61 +1044,100 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         emoji = "🟢"
         title_word = "Release"
 
-    unauthorized_msg = f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!"
-    mute_until = datetime.utcnow() + timedelta(minutes=30)
-
+    # ROLE VALIDATION
     if action == "release":
         if username_cmp == seller:
-            return await msg.reply_text(f"🟥 You are assigned as seller. {buyer} must confirm.")
+            # Seller trying release → not allowed
+            return await msg.reply_text(
+                f"🟥 You are {username_display} assign as a seller\nFor release, need confirmation of {buyer}."
+            )
         elif username_cmp != buyer:
+            # Unknown person
             try:
-                await context.bot.restrict_chat_member(
-                    chat_id=int(chat_id),
-                    user_id=user.id,
-                    permissions=ChatPermissions(can_send_messages=False),
-                    until_date=mute_until
+                await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
+            except:
+                pass
+            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
+            try:
+                await context.bot.send_message(
+                    LOG_CHANNEL_ID,
+                    f"🔴 <b>Unauthorized {title_word} Attempt</b>\n"
+                    f"👤 {username_display}\n"
+                    f"🆔 Trade ID: #{trade_id}\n"
+                    f"👥 {chat.title}\n"
+                    f"🕓 {datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')}",
+                    parse_mode="HTML"
                 )
             except:
                 pass
-            return await msg.reply_text(unauthorized_msg)
+            return
 
     elif action == "refund":
         if username_cmp == buyer:
-            return await msg.reply_text(f"🟥 You are assigned as buyer. {seller} must confirm.")
+            # Buyer trying refund → not allowed
+            return await msg.reply_text(
+                f"🟥 You are {username_display} assign as a buyer\nFor refund, need confirmation of {seller}."
+            )
         elif username_cmp != seller:
+            # Unknown person
             try:
-                await context.bot.restrict_chat_member(
-                    chat_id=int(chat_id),
-                    user_id=user.id,
-                    permissions=ChatPermissions(can_send_messages=False),
-                    until_date=mute_until
+                await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
+            except:
+                pass
+            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation nikl bc ")
+            try:
+                await context.bot.send_message(
+                    LOG_CHANNEL_ID,
+                    f"🔴 <b>Unauthorized {title_word} Attempt</b>\n"
+                    f"👤 {username_display}\n"
+                    f"🆔 Trade ID: #{trade_id}\n"
+                    f"👥 {chat.title}\n"
+                    f"🕓 {datetime.utcnow().strftime('%d %b %Y, %H:%M UTC')}",
+                    parse_mode="HTML"
                 )
             except:
                 pass
-            return await msg.reply_text(unauthorized_msg)
+            return
 
+    # ✅ If reached here → confirmation is valid
     now_ist = datetime.now(IST)
     time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
 
     confirm_msg = (
-        f"{emoji} {title_word} CONFIRMED by {username_display} (awaiting admin)\n"
+        f"{emoji} {title_word} CONFIRMED by {username_display} (awaiting admin completion)\n"
         f"📆 {time_str}\n"
         f"🆔 #{trade_id}"
     )
 
+    # Update DB → mark as confirmed (not completed)
     deal["status"] = f"confirmed_{action}"
     deals[reply_id] = deal
     groups_col.update_one({"_id": chat_id}, {"$set": {"deals": deals}})
 
     try:
+        bot_message_id = int(reply_id)
         await context.bot.send_message(
             chat_id=int(chat_id),
             text=confirm_msg,
-            reply_to_message_id=int(reply_id),
+            reply_to_message_id=bot_message_id,
             parse_mode="HTML"
         )
     except:
         await msg.reply_text(confirm_msg)
+
+    # Log confirmation
+    try:
+        await context.bot.send_message(
+            LOG_CHANNEL_ID,
+            f"{emoji} <b>{title_word} Confirmed (pending admin)</b>\n"
+            f"👤 {username_display}\n"
+            f"🆔 Trade ID: #{trade_id}\n"
+            f"👥 {chat.title}\n"
+            f"📆 {time_str}",
+            parse_mode="HTML"
+        )
+    except:
+        pass
 
 # ======================================================
 # ✅ MAIN APP SETUP
