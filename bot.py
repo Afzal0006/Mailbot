@@ -955,111 +955,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.whitesmoke, colors.HexColor("#F7FBFF")]),
     ]))
 
-import pytz
-from datetime import datetime
-from telegram import Update
-from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ContextTypes, filters
-)
-
-IST = pytz.timezone("Asia/Kolkata")
-
-# === Confirmation Handler ===
-async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg or not msg.text:
-        return
-
-    text = msg.text.lower().strip()
-    if not any(word in text for word in ("release", "relese", "refund")):
-        return
-
-    chat = update.effective_chat
-    chat_id = str(chat.id)
-    user = update.effective_user
-    username_display = f"@{user.username}" if user.username else user.full_name
-    username_cmp = username_display.lower()
-
-    if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please reply to the deal message using confirming Release / Refund.")
-
-    reply_id = str(msg.reply_to_message.message_id)
-
-    group_data = groups_col.find_one({"_id": chat_id})
-    if not group_data:
-        return await msg.reply_text("⚠️ No deal data found for this group!")
-
-    deals = group_data.get("deals") or {}
-    deal = deals.get(reply_id)
-    if not deal:
-        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct deal form ")
-
-    buyer = str(deal.get("buyer", "")).lower()
-    seller = str(deal.get("seller", "")).lower()
-    trade_id = deal.get("trade_id")
-
-    if deal.get("status") in ["confirmed_release", "confirmed_refund"]:
-        return await msg.reply_text("⚠️ Already confirmed this deal.")
-
-    if "refund" in text:
-        action = "refund"
-        emoji = "🔴"
-        title_word = "Refund"
-    else:
-        action = "release"
-        emoji = "🟢"
-        title_word = "Release"
-
-    if action == "release":
-        if username_cmp == seller:
-            return await msg.reply_text(
-                f"🟥 You are {username_display} assign as a seller\nFor release, need confirmation of {buyer}."
-            )
-        elif username_cmp != buyer:
-            try:
-                await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
-            except:
-                pass
-            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
-            return
-
-    elif action == "refund":
-        if username_cmp == buyer:
-            return await msg.reply_text(
-                f"🟥 You are {username_display} assign as a buyer\nFor refund, need confirmation of {seller}."
-            )
-        elif username_cmp != seller:
-            try:
-                await context.bot.ban_chat_member(chat_id=int(chat_id), user_id=user.id)
-            except:
-                pass
-            await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation nikl bc ")
-            return
-
-    # VALID CONFIRMATION
-    now_ist = datetime.now(IST)
-    time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
-
-    confirm_msg = (
-        f"{emoji} {title_word} CONFIRMED by {username_display} (awaiting admin completion)\n"
-        f"📆 {time_str}\n"
-        f"🆔 #{trade_id}"
-    )
-
-    deal["status"] = f"confirmed_{action}"
-    deals[reply_id] = deal
-    groups_col.update_one({"_id": chat_id}, {"$set": {"deals": deals}})
-
-    try:
-        bot_message_id = int(reply_id)
-        await context.bot.send_message(
-            chat_id=int(chat_id),
-            text=confirm_msg,
-            reply_to_message_id=bot_message_id,
-            parse_mode="HTML"
-        )
-    except:
-        await msg.reply_text(confirm_msg)    elements.append(table)
+    elements.append(table)
     elements.append(Spacer(1, 20))
 
     total_amount = sum(
@@ -1084,7 +980,106 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
 # ======================================================
 # ✅ CONFIRMATION HANDLER: release / relese / refund
 # ======================================================
+import pytz
+from datetime import datetime
+from telegram import Update
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, ContextTypes, filters
+)
 
+IST = pytz.timezone("Asia/Kolkata")
+
+# === Confirmation Handler ===
+async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Handle release/relese/refund confirmations with proper role logic."""
+
+    msg = update.message
+    if not msg or not msg.text:
+        return
+
+    text = msg.text.lower().strip()
+    if not any(word in text for word in ("release", "relese", "refund")):
+        return
+
+    chat = update.effective_chat
+    chat_id = str(chat.id)
+    user = update.effective_user
+    username_display = f"@{user.username}" if user.username else user.full_name
+    username_cmp = username_display.lower()
+
+    # Must reply to deal message
+    if not msg.reply_to_message:
+        return await msg.reply_text("⚠️ Please reply to the deal message using confirming Release / Refund.")
+
+    reply_id = str(msg.reply_to_message.message_id)
+
+    # Lookup deal from Mongo
+    group_data = groups_col.find_one({"_id": chat_id})
+    if not group_data:
+        return await msg.reply_text("⚠️ No deal data found for this group!")
+
+    deals = group_data.get("deals") or {}
+    deal = deals.get(reply_id)
+    if not deal:
+        return await msg.reply_text("⚠️ Deal not found! Make sure you reply to the correct deal form.")
+
+    buyer = str(deal.get("buyer", "")).lower()
+    seller = str(deal.get("seller", "")).lower()
+    trade_id = deal.get("trade_id")
+
+    if deal.get("status") in ["confirmed_release", "confirmed_refund"]:
+        return await msg.reply_text("⚠️ Already confirmed this deal.")
+
+    if "refund" in text:
+        action = "refund"
+        emoji = "🔴"
+        title_word = "Refund"
+    else:
+        action = "release"
+        emoji = "🟢"
+        title_word = "Release"
+
+    # ROLE VALIDATION
+    if action == "release":
+        if username_cmp == seller:
+            return await msg.reply_text(
+                f"🟥 You are {username_display} assigned as seller.\nFor release, {buyer} must confirm."
+            )
+        elif username_cmp != buyer:
+            return await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
+
+    elif action == "refund":
+        if username_cmp == buyer:
+            return await msg.reply_text(
+                f"🟥 You are {username_display} assigned as buyer.\nFor refund, {seller} must confirm."
+            )
+        elif username_cmp != seller:
+            return await chat.send_message(f"🚫 {username_display} tried unauthorized {title_word.lower()} confirmation!")
+
+    # 👍 Valid confirmation
+    now_ist = datetime.now(IST)
+    time_str = now_ist.strftime("%d %b %Y, %I:%M %p IST")
+
+    confirm_msg = (
+        f"{emoji} {title_word} CONFIRMED by {username_display} (awaiting admin completion)\n"
+        f"📆 {time_str}\n"
+        f"🆔 #{trade_id}"
+    )
+
+    # Update DB
+    deal["status"] = f"confirmed_{action}"
+    deals[reply_id] = deal
+    groups_col.update_one({"_id": chat_id}, {"$set": {"deals": deals}})
+
+    try:
+        await context.bot.send_message(
+            chat_id=int(chat_id),
+            text=confirm_msg,
+            reply_to_message_id=int(reply_id),
+            parse_mode="HTML"
+        )
+    except:
+        await msg.reply_text(confirm_msg)
 
 # ======================================================
 # ✅ MAIN APP SETUP
@@ -1387,11 +1382,12 @@ def main():
     app.add_handler(CommandHandler("refund", refund_deal))
     app.add_handler(CommandHandler("adm", adm))
     
-    confirmation_handler = MessageHandler(
-        filters.Regex(r"(?i)\b(release|relese|refund)\b") & ~filters.COMMAND,
+    application.add_handler(
+    MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
         handle_confirmation
     )
-    app.add_handler(confirmation_handler)
+    )
 
     print("Bot started... ✅ @golgibody")
     app.run_polling()
