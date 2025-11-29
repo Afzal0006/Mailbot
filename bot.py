@@ -1004,7 +1004,7 @@ import pytz
 from datetime import datetime, timedelta
 from telegram import Update, ChatPermissions
 from telegram.ext import (
-    Application, CommandHandler, MessageHandler, ContextTypes, filters
+    Application, MessageHandler, ContextTypes, filters
 )
 
 IST = pytz.timezone("Asia/Kolkata")
@@ -1066,8 +1066,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     permissions=ChatPermissions(can_send_messages=False),
                     until_date=mute_until
                 )
-            except:
-                pass
+            except Exception as e:
+                print(f"MUTE FAILED: {e}")
             return await chat.send_message(f"🚫 {username_display} tried unauthorized release confirmation! Muted 30 min.")
 
     elif action == "refund":
@@ -1081,8 +1081,8 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
                     permissions=ChatPermissions(can_send_messages=False),
                     until_date=mute_until
                 )
-            except:
-                pass
+            except Exception as e:
+                print(f"MUTE FAILED: {e}")
             return await chat.send_message(f"🚫 {username_display} tried unauthorized refund confirmation! Muted 30 min.")
 
     now_ist = datetime.now(IST)
@@ -1107,6 +1107,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     except:
         await msg.reply_text(confirm_msg)
+
 
 # ======================================================
 # ✅ MAIN APP SETUP
