@@ -1003,7 +1003,9 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 import pytz
 from datetime import datetime, timedelta
 from telegram import Update, ChatPermissions
-from telegram.ext import ContextTypes
+from telegram.ext import (
+    Application, CommandHandler, MessageHandler, ContextTypes, filters
+)
 
 IST = pytz.timezone("Asia/Kolkata")
 
@@ -1067,7 +1069,7 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
             except:
                 pass
             return await chat.send_message(f"🚫 {username_display} tried unauthorized release confirmation! Muted 30 min.")
-    
+
     elif action == "refund":
         if username_cmp == buyer:
             return await msg.reply_text(f"🟥 You are assigned as buyer. {seller} must confirm.")
@@ -1105,6 +1107,20 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
         )
     except:
         await msg.reply_text(confirm_msg)
+
+def main():
+    app = Application.builder().token("YOUR_BOT_TOKEN").build()
+
+    confirmation_handler = MessageHandler(
+        filters.TEXT & (~filters.COMMAND),
+        handle_confirmation
+    )
+
+    app.add_handler(confirmation_handler)
+    app.run_polling()
+
+if __name__ == "__main__":
+    main()
 
 # ======================================================
 # ✅ MAIN APP SETUP
