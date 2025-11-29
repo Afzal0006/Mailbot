@@ -278,8 +278,8 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
 
-    # ✅ Log to channel
-    try:
+    # ==== log section ====
+try:
     log_msg = (
         "📜 <b>Deal Completed (Log)</b>\n"
         "────────────────\n"
@@ -294,16 +294,13 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📨 Vouch", url=f"https://t.me/vouch_bot?start={trade_id}")
+            InlineKeyboardButton("📨 Vouch", url="https://t.me/Multicellular")
         ],
         [
-            InlineKeyboardButton(
-                "💬 Chat",
-                url=f"https://t.me/c/{str(update.effective_chat.id)[4:]}/{update.message.reply_to_message.message_id}"
-            )
+            InlineKeyboardButton("💬 Chat", url="https://t.me/Multicellular")
         ],
         [
-            InlineKeyboardButton("⚡ Trusify", url=f"https://trusify.com/trade/{trade_id}")
+            InlineKeyboardButton("⚡ Trusify", url="https://t.me/Multicellular")
         ]
     ])
 
@@ -313,8 +310,10 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=keyboard,
         parse_mode="HTML"
     )
+
 except Exception as e:
     print(f"Log Error: {e}")
+    
 # ==== Update by Traid id ====
 async def update_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not await is_admin(update):
