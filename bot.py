@@ -1,16 +1,52 @@
-import re
 import os
+import re
 import random
-from telegram import Update
-from telegram.ext import Application, CommandHandler, ContextTypes
+import pytz
+from datetime import datetime, timedelta
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, InputFile, ChatPermissions
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackQueryHandler, MessageHandler, filters
 from pymongo import MongoClient
+from dotenv import load_dotenv
+import io
+from reportlab.lib.pagesizes import A4
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-# ==== CONFIG ====
+#Here problem afzal bhai
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+load_dotenv(os.path.join(BASE_DIR, ".env"))
+
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 MONGO_URI = os.getenv("MONGO_URI")
-LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID")) 
+LOG_CHANNEL_ID_RAW = os.getenv("LOG_CHANNEL_ID")
+OWNER_IDS_RAW = os.getenv("OWNER_IDS", "")
 
-OWNER_IDS = list(map(int, os.getenv("OWNER_IDS").split(",")))  
+# Validating everything
+if not BOT_TOKEN:
+    raise ValueError("❌ BOT_TOKEN is missing in .env file!")
+if not MONGO_URI:
+    raise ValueError("❌ MONGO_URI is missing in .env file!")
+if not LOG_CHANNEL_ID_RAW:
+    raise ValueError("❌ LOG_CHANNEL_ID is missing in .env file!")
+
+try:
+    LOG_CHANNEL_ID = int(LOG_CHANNEL_ID_RAW)
+except ValueError:
+    raise ValueError(f"❌ LOG_CHANNEL_ID must be a number! You put: {LOG_CHANNEL_ID_RAW}")
+
+OWNER_IDS = []
+if OWNER_IDS_RAW.strip():
+    for uid in OWNER_IDS_RAW.split(","):
+        uid = uid.strip()
+        if uid.isdigit():
+            OWNER_IDS.append(int(uid))
+
+if not OWNER_IDS:
+    raise ValueError("❌ At least one OWNER_IDS required!")
+
+print("All config loaded perfectly ✅")
+
 
 # ==== MONGO CONNECT ====
 client = MongoClient(MONGO_URI)
