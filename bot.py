@@ -1,15 +1,17 @@
 import re
 import random
+import os
+from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 from pymongo import MongoClient
 
-# ==== CONFIG ====
-BOT_TOKEN = "BOT_TOKEN"
-MONGO_URI = "MONGO_URI"
-LOG_CHANNEL_ID = 
+load_dotenv()
 
-OWNER_IDS = [OWNER_IDS]  
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URI = os.getenv("MONGO_URI")
+LOG_CHANNEL_ID = int(os.getenv("LOG_CHANNEL_ID"))
+OWNER_IDS = list(map(int, os.getenv("OWNER_IDS").split(",")))  
 
 # ==== MONGO CONNECT ====
 client = MongoClient(MONGO_URI)
