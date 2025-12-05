@@ -336,7 +336,7 @@ async def release_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
         InlineKeyboardButton("💬 Chat", url="https://t.me/+KYQXPzUS6S8zYTNl")
     ],
     [
-        InlineKeyboardButton("⚡ Trusify", url="https://t.me/trustifyescrow")
+        InlineKeyboardButton("⚡ TRUSTIFY", url="https://t.me/trustifyescrow")
     ]
 ])
 
@@ -1061,24 +1061,24 @@ async def handle_confirmation(update: Update, context: ContextTypes.DEFAULT_TYPE
     username_cmp = username_display.lower()
 
     if not msg.reply_to_message:
-        return await msg.reply_text("⚠️ Please reply to the deal message using confirmation.")
+        return await msg.reply_text("")
 
     reply_id = str(msg.reply_to_message.message_id)
     group_data = groups_col.find_one({"_id": chat_id})
     if not group_data:
-        return await msg.reply_text("⚠️ No deal data found!")
+        return await msg.reply_text("")
 
     deals = group_data.get("deals") or {}
     deal = deals.get(reply_id)
     if not deal:
-        return await msg.reply_text("⚠️ Deal not found!")
+        return await msg.reply_text("")
 
     buyer = str(deal.get("buyer", "")).lower()
     seller = str(deal.get("seller", "")).lower()
     trade_id = deal.get("trade_id")
 
     if deal.get("status") in ["confirmed_release", "confirmed_refund"]:
-        return await msg.reply_text("⚠️ Already confirmed this deal.")
+        return await msg.reply_text("")
 
     if "refund" in text:
         action = "refund"
@@ -1355,7 +1355,7 @@ async def refund_deal(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 InlineKeyboardButton("💬 Chat", url="https://t.me/+KYQXPzUS6S8zYTNl")
             ],
             [
-                InlineKeyboardButton("⚡ Trustify", url="https://t.me/trustifyescrow")
+                InlineKeyboardButton("⚡ TRUSTIFY", url="https://t.me/trustifyescrow")
             ]
         ])
 
