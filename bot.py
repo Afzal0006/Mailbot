@@ -991,7 +991,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     elements = [
-        Paragraph("<b>TRUSIFY ESCROW SUMMARY</b>", title_style),
+        Paragraph("<b>TRUSTIFY ESCROW SUMMARY</b>", title_style),
         Paragraph("All-Time Escrow History", subtitle_style),
         Spacer(1, 12),
         Paragraph(datetime.now(IST).strftime("📅 %B %d, %Y • %I:%M %p IST"), subtitle_style),
