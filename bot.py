@@ -1022,7 +1022,7 @@ async def escrow(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     elements.append(Paragraph(
         f"💰 <b>Total Escrow Volume:</b> ₹{total_amount:.2f}<br/><br/>"
-        "💼 Trusify Escrow Bot",
+        "💼 TRUSTIFY ESCROW BOT",
         footer_style
     ))
 
